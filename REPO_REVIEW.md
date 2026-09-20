@@ -13,9 +13,9 @@ framework-free TypeScript that fans out across five government APIs, degrades pe
 instead of failing, caches by how fast each feed actually changes, and hand-rolls a
 protobuf reader so it bundles for edge runtimes. 117 tests, all passing, all meaningful.
 
-Everything around it is unfinished or wrong. The default branch (`main`) contains none of
-it. The landing page pitches a *different product* ("Should I go out today?", BC Parks,
-Vercel) than the one that was built. The stop index ships as a 10-row placeholder whose
+Everything around it is unfinished or wrong. The landing page pitches a *different
+product* ("Should I go out today?", BC Parks, Vercel) than the one that was built. The
+stop index ships as a 10-row placeholder whose
 IDs match nothing real, so the flagship transit panel is empty on every fresh deploy. The
 "moat" — the delay archive — will exhaust a Supabase free tier in roughly a day because
 it re-inserts the entire forward-looking feed every five minutes with no dedup key, and
@@ -66,18 +66,15 @@ is fetched *region-wide once* and cached, so upstream load is a function of time
 traffic. Civic cache keys are rounded to ~100 m so neighbours share an entry. Nothing
 throws past `runSource` (`src/server/sources/base.ts:28`); a dead portal greys one card.
 
-**Current state: half-built, and split in two.**
+**Current state: a good backend behind a stale front door.**
 
-- **Backend:** working, tested, deployable. ~90% done for an MVP.
+- **Backend:** working, tested, deployable, and on `main`. ~90% done for an MVP.
 - **Frontend:** a pitch deck about the business idea with the actual product hidden behind
   a nav tab labelled "Live Demo". Six of seven screens describe a product that does not
   exist.
 - **Archive (the stated moat):** code exists, schema exists, cron exists — and it has
   never been run, would not survive contact with the free tier if it were, and is the one
   thing whose value is strictly a function of *when you start*.
-- **`main` (the default branch) has none of the backend.** It is the original pitch deck
-  only. PRs #2–#7 all merged into the feature branch. A Cloudflare Git integration
-  pointed at `main` deploys a marketing site with no API.
 
 ---
 
@@ -88,9 +85,16 @@ Severity: **C**ritical / **H**igh / **M**edium / **L**ow. Effort: **S**mall (<½
 
 ### Critical
 
+> **Issue #1 was withdrawn.** It claimed `main` contained none of the backend. That was
+> wrong: it came from a stale `origin/main` remote-tracking ref in this container that I
+> read without fetching first. After `git fetch`, `main` is at `f5f39c2` and carries the
+> full backend — 43 files under `src/server/`, plus `api/`, `src/worker.ts`,
+> `wrangler.jsonc` and `supabase/schema.sql`. PRs #2–#7 all merged into `main` as their
+> commit messages say. The numbering below is left as-is so the issue references in §4
+> and §7 stay valid. **Corrected count: 29 issues — 4 critical, 7 high, 12 medium, 6 low.**
+
 | # | Issue | Location | Sev | Eff | Suggested fix |
 |---|---|---|---|---|---|
-| 1 | **The default branch has no product.** `main` contains only the React pitch deck — no `src/server/`, no `api/`, no `src/worker.ts`, no `wrangler.jsonc`. All backend work merged into `claude/nifty-davinci-w3we89`. Any Git-integration deploy of `main` ships a site whose "Live Demo" fetches a 404. | `git ls-tree -r origin/main` vs. working tree | C | S | Merge the feature branch to `main` and make `main` the deploy source. Nothing else in this list matters until this is done. |
 | 2 | **The archive will destroy the free tier inside a day, and stores ~9× duplicate rows.** Every 5-minute poll flattens the *entire forward-looking* TripUpdates feed and `insert`s it. A prediction 45 min out is re-archived on ~9 consecutive polls under a new synthetic `id`. Order of magnitude: ~50–120k stop-time-updates per poll × 288 polls/day ≈ **15–35M rows/day**, several GB/day with indexes, against a 500 MB free tier. | `src/server/snapshot/sinks.ts:44` (`insert`, not `upsert`); `supabase/schema.sql:5`; `.github/workflows/snapshot.yml:15` | C | M | Add `unique (trip_id, stop_id, predicted_time)` and switch to `upsert(..., { onConflict, ignoreDuplicates: true })`; archive only the **next** unserved stop per trip rather than the whole horizon; add a retention/rollup job (raw rows → hourly per-stop aggregates after 30 days). Do this *before* the cron is ever enabled. |
 | 3 | **Supabase table has no RLS.** `delay_observations` is created with no `enable row level security` and no policies. Supabase grants the `anon` role access to `public` by default, so the table is readable — and writable — by anyone holding the publishable anon key, which ships in client bundles by design. | `supabase/schema.sql:5-26` | C | S | `alter table delay_observations enable row level security;` plus a read-only policy for `anon` (or none at all, and serve reads through a view/RPC). Service key stays server-side only. |
 | 4 | **Two unrated-limited paths into the full fan-out.** `/api/pulse` was hardened (PR #6) but `/api/og` and `/report/<slug>` both call `buildPulse` with an attacker-controlled address/slug and never touch the rate limiter. Anyone can burn the shared TransLink key and the DataBC geocoder quota with a loop over `/report/<random>`. | `src/worker.ts:84`, `src/worker.ts:92`; `src/server/og.ts:163`; limiter only in `src/server/handler.ts:74` | C | S | Extract the limiter into a wrapper applied to all three routes. Additionally: reject slugs that don't geocode with a cheap negative cache so repeat junk never re-hits upstream. |
@@ -464,45 +468,44 @@ in this week exists to get it running safely.
    only the next unserved stop per trip, retention/rollup plan. *(issue #2)*
 3. **Enable RLS on `delay_observations`.** *(issue #3)*
 4. **Turn the snapshotter on.** Every day from here is archive you own.
-5. **Merge the feature branch to `main`; make `main` the deploy source.** *(issue #1)*
-6. **Add `ci.yml` and `verify-sources.yml`.** *(issue #8)*
-7. **Build and host the real stop index; automate it weekly.** *(issue #5)*
-8. **`npm uninstall` the ten unused packages.** Clears the audit in one command.
+5. **Add `ci.yml` and `verify-sources.yml`.** *(issue #8)*
+6. **Build and host the real stop index; automate it weekly.** *(issue #5)*
+7. **`npm uninstall` the ten unused packages.** Clears the audit in one command.
    *(issue #12)*
 
 ### Week 2 — make the product exist for a stranger
 
-9. **Rate-limit `/api/og` and `/report/<slug>`.** *(issue #4)*
-10. **Fix the inverted transit-access score** + regression test. *(issue #6)*
-11. **Replace the pitch deck with the product.** `/` is the search box; deck moves to
+8. **Rate-limit `/api/og` and `/report/<slug>`.** *(issue #4)*
+9. **Fix the inverted transit-access score** + regression test. *(issue #6)*
+10. **Replace the pitch deck with the product.** `/` is the search box; deck moves to
     `/about` or dies. *(issue #9)*
-12. **Rewrite `index.html`.** `lang="en-CA"`, OG/description/favicon/canonical, strip both
+11. **Rewrite `index.html`.** `lang="en-CA"`, OG/description/favicon/canonical, strip both
     sandbox scripts and the unused CDN stylesheet. *(issue #10)*
-13. **Render raw civic records** under the count tiles. *(issue #15)*
-14. **PNG og:images.** *(issue #7)*
-15. **Add `/legal`.** *(issue #24)*
+12. **Render raw civic records** under the count tiles. *(issue #15)*
+13. **PNG og:images.** *(issue #7)*
+14. **Add `/legal`.** *(issue #24)*
 
 ### Week 3 — make the data honest and the coverage wider
 
-16. **Date/status filters on the civic queries** so "recent" and "open" are true.
+15. **Date/status filters on the civic queries** so "recent" and "open" are true.
     *(issue #11)*
-17. **Harden `verify:sources`** to assert field names, then actually run it against
+16. **Harden `verify:sources`** to assert field names, then actually run it against
     Surrey and Burnaby and fix what it finds. *(issue #18)*
-18. **Add Richmond and New Westminster** — one config entry and one registry row each.
+17. **Add Richmond and New Westminster** — one config entry and one registry row each.
     Three municipalities becomes five in an afternoon.
-19. **Coverage transparency page**, generated from `LOCALITY_REGISTRY`.
-20. **Ship the map.** *(§4, item 4)*
-21. **Generate neighbourhood SEO pages.** They need two months to compound — start now.
+18. **Coverage transparency page**, generated from `LOCALITY_REGISTRY`.
+19. **Ship the map.** *(§4, item 4)*
+20. **Generate neighbourhood SEO pages.** They need two months to compound — start now.
 
 ### Week 4 — first revenue motion
 
-22. **Publish The Late Index v0** from three weeks of archive. Partial is fine; label the
+21. **Publish The Late Index v0** from three weeks of archive. Partial is fine; label the
     window honestly.
-23. **Pitch four outlets** — Daily Hive, Vancouver Is Awesome, The Tyee, CityNews.
-24. **Send ten named outreach emails** to the consultancies and BIAs in §6, offering a
+22. **Pitch four outlets** — Daily Hive, Vancouver Is Awesome, The Tyee, CityNews.
+23. **Send ten named outreach emails** to the consultancies and BIAs in §6, offering a
     free first query.
-25. **Free API keys to UBC SCARP, UBC REACT, SFU City Program.**
-26. **Start the r/vancouver month** — answer address questions with real report links, no
+24. **Free API keys to UBC SCARP, UBC REACT, SFU City Program.**
+25. **Start the r/vancouver month** — answer address questions with real report links, no
     launch post, mods messaged first.
 
 ### Explicitly *not* in the 30 days
