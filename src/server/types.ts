@@ -44,6 +44,12 @@ export interface ResolvedLocation extends LatLng {
   /** Geocoder confidence 0-100. Below ~70 we warn the user in the UI. */
   confidence: number | null;
   source: 'geocoder' | 'coordinates';
+  /**
+   * Slug for `/report/<slug>`, derived deterministically from `address`.
+   * Null when there is no address to derive one from (raw-coordinates
+   * queries that didn't resolve to a street address).
+   */
+  slug: string | null;
 }
 
 export interface NearbyStop extends LatLng {
