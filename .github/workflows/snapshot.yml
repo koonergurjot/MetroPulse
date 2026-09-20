@@ -1,0 +1,36 @@
+name: Snapshot TransLink delays
+
+# GitHub Actions cron is best-effort: under platform load, scheduled runs can
+# slip by several minutes or be skipped outright, and the docs make no
+# stronger guarantee than "as close to that time as possible". Five minutes
+# is the practical floor for a workflow-based schedule here — treat gaps in
+# the archive as expected, not a bug.
+#
+# Requires SUPABASE_URL and SUPABASE_SERVICE_KEY repository secrets to
+# persist anywhere durable. Without them the job falls back to writing
+# data/snapshots/*.jsonl inside the disposable runner, which is discarded
+# when the job ends.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: node --experimental-strip-types scripts/snapshot.ts
+        env:
+          TRANSLINK_API_KEY: ${{ secrets.TRANSLINK_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

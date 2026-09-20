@@ -68,6 +68,17 @@ export const config = {
     path: env('STOP_INDEX_PATH', 'data/stops.sample.csv'),
   },
 
+  /** Durable sink for the delay-observation snapshotter. Supabase when both are set. */
+  supabase: {
+    url: optionalEnv('SUPABASE_URL'),
+    serviceKey: optionalEnv('SUPABASE_SERVICE_KEY'),
+  },
+
+  /** Fallback sink when Supabase isn't configured: newline-delimited JSON on disk. */
+  snapshot: {
+    outputDir: env('SNAPSHOT_OUTPUT_DIR', 'data/snapshots'),
+  },
+
   /** Request-level knobs. */
   limits: {
     defaultRadiusM: Number(env('DEFAULT_RADIUS_M', '800')),

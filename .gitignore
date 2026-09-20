@@ -6,3 +6,4 @@ build/
 .env
 .env.local
 data/stops.csv
+data/snapshots/

@@ -47,7 +47,7 @@ const median = (values: number[]): number | null => {
 };
 
 /** Anything beyond this is a data error, not a delay, and would wreck the median. */
-const MAX_PLAUSIBLE_DELAY_SEC = 3 * 60 * 60;
+export const MAX_PLAUSIBLE_DELAY_SEC = 3 * 60 * 60;
 
 /**
  * Reduces the region-wide feed to the stops near one point.
