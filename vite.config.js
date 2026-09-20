@@ -11,5 +11,14 @@ export default defineConfig({
     hmr: {
       port: 3000,
     },
+    proxy: {
+      // The API runs standalone in dev (`npm run dev:api`, :8787). In
+      // production the same-origin Worker serves both, so components just
+      // fetch the relative `/api/pulse` path either way.
+      "/api": {
+        target: "http://localhost:8787",
+        changeOrigin: true,
+      },
+    },
   },
 });
