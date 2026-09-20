@@ -12,6 +12,7 @@ import { config } from './config.ts';
 import { isValidLatLng, METRO_VANCOUVER_BBOX, withinBBox } from './geo.ts';
 import { loadStopIndex } from './gtfs/stopProvider.ts';
 import { computePulseScore } from './score.ts';
+import { addressQueryFromSlug, slugifyAddress } from './slug.ts';
 import { BURNABY_META, fetchBurnabyBuildingPermits, fetchSurreyBuildingPermits, SURREY_META } from './sources/arcgis.ts';
 import { DRIVEBC_META, fetchRoadEvents } from './sources/drivebc.ts';
 import { GEOCODER_META, geocodeAddress } from './sources/geocoder.ts';
@@ -49,6 +50,8 @@ export interface PulseQuery {
   lat?: number;
   lng?: number;
   radiusM?: number;
+  /** `/report/<slug>` deep links resolve through this instead of `address`. */
+  slug?: string;
 }
 
 /** Cache policies, tuned to how fast each feed actually changes. */
@@ -178,10 +181,14 @@ async function resolveLocation(query: PulseQuery, signal?: AbortSignal): Promise
     if (!withinBBox(point, METRO_VANCOUVER_BBOX)) {
       throw new BadRequestError('MetroPulse only covers Metro Vancouver right now.');
     }
-    return { ...point, address: null, locality: null, confidence: null, source: 'coordinates' };
+    return { ...point, address: null, locality: null, confidence: null, source: 'coordinates', slug: null };
   }
 
-  const rawAddress = query.address;
+  // A `/report/<slug>` deep link carries no address of its own — the slug
+  // *is* the address, hyphenated. Turn it back into a search string and feed
+  // it through the exact same geocoding path as a typed address, so a slug
+  // and the address it came from always resolve identically.
+  const rawAddress = query.address ?? (query.slug ? addressQueryFromSlug(query.slug) : undefined);
   if (!rawAddress || !rawAddress.trim()) throw new BadRequestError('Provide either an address or lat/lng.');
   if (hasControlCharacters(rawAddress)) throw new BadRequestError('Address contains invalid characters.');
 
@@ -200,7 +207,10 @@ async function resolveLocation(query: PulseQuery, signal?: AbortSignal): Promise
   if (!withinBBox(resolved, METRO_VANCOUVER_BBOX)) {
     throw new BadRequestError('That address is outside Metro Vancouver.');
   }
-  return resolved;
+  // Slugify the *canonical* geocoder address, not whatever the caller typed,
+  // so "555 w hastings st" and "555 West Hastings Street, Vancouver" land on
+  // the same shareable URL.
+  return { ...resolved, slug: resolved.address ? slugifyAddress(resolved.address) : null };
 }
 
 export async function buildPulse(query: PulseQuery, signal?: AbortSignal): Promise<PulseResponse> {

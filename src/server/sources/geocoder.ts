@@ -30,7 +30,10 @@ interface GeocoderResponse {
   }>;
 }
 
-export async function geocodeAddress(addressString: string, signal?: AbortSignal): Promise<ResolvedLocation> {
+export async function geocodeAddress(
+  addressString: string,
+  signal?: AbortSignal,
+): Promise<Omit<ResolvedLocation, 'slug'>> {
   const url = new URL('/addresses.json', config.geocoder.base);
   url.searchParams.set('addressString', addressString);
   url.searchParams.set('maxResults', '1');

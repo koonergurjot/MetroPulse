@@ -18,11 +18,33 @@ import {
   Home,
   Construction,
 } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { Check, Copy, Share2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PulseResponse, ScoreComponent, SourceResult, SourceStatus } from '../server/types';
 
 type SourceCard = Omit<SourceResult<unknown>, 'data'>;
-type Query = { address: string } | { lat: number; lng: number };
+type Query = { address: string } | { lat: number; lng: number } | { slug: string };
+
+const REPORT_PATH_PREFIX = '/report/';
+
+function shareUrlFor(slug: string): string {
+  return `${window.location.origin}${REPORT_PATH_PREFIX}${slug}`;
+}
+
+/** Plain text meant to be pasted straight into a Reddit comment or listing description. */
+function buildShareSummary(data: PulseResponse, shareUrl: string): string {
+  const address = data.location.address ?? `${data.location.lat.toFixed(5)}, ${data.location.lng.toFixed(5)}`;
+  const scoreLine =
+    data.score.value === null ? 'Pulse Score: not enough live data yet' : `Pulse Score: ${data.score.value}/100`;
+  const highlights = data.score.components
+    .filter((c) => c.available)
+    .slice()
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2)
+    .map((c) => `- ${c.label}: ${c.score}/100 — ${c.reason}`);
+
+  return [`MetroPulse report for ${address}`, scoreLine, ...highlights, '', `Full report: ${shareUrl}`].join('\n');
+}
 
 const EXAMPLE_ADDRESSES = [
   '800 Robson St, Vancouver, BC',
@@ -33,6 +55,7 @@ const EXAMPLE_ADDRESSES = [
 function buildSearch(query: Query): string {
   const params = new URLSearchParams();
   if ('address' in query) params.set('address', query.address);
+  else if ('slug' in query) params.set('slug', query.slug);
   else {
     params.set('lat', String(query.lat));
     params.set('lng', String(query.lng));
@@ -216,6 +239,33 @@ function IdleState() {
   );
 }
 
+function CopyButton({ getText, label }: { getText: () => string; label: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleClick = async () => {
+    const text = getText();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard API unavailable (insecure context, permissions) — nothing
+      // more we can do here; the button just won't confirm.
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className="px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-colors flex items-center gap-1.5"
+    >
+      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+      {copied ? 'Copied!' : label}
+    </button>
+  );
+}
+
 export default function LiveDemo() {
   const [addressInput, setAddressInput] = useState('');
   const [data, setData] = useState<PulseResponse | null>(null);
@@ -246,6 +296,26 @@ export default function LiveDemo() {
       if (id === requestId.current) setLoading(false);
     }
   }, []);
+
+  // A direct visit to `/report/<slug>` (e.g. from a shared Reddit link) loads
+  // that report on mount instead of showing the idle search state.
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (!path.startsWith(REPORT_PATH_PREFIX)) return;
+    const slug = decodeURIComponent(path.slice(REPORT_PATH_PREFIX.length).replace(/\/+$/, ''));
+    if (slug) runQuery({ slug });
+  }, [runQuery]);
+
+  // Keep the address bar in sync with whatever report is on screen — typing
+  // an address and getting a result should leave the tab at a link worth
+  // sharing, not just the search page.
+  useEffect(() => {
+    if (!data?.location.slug) return;
+    const canonicalPath = `${REPORT_PATH_PREFIX}${data.location.slug}`;
+    if (window.location.pathname !== canonicalPath) {
+      window.history.replaceState(null, '', canonicalPath);
+    }
+  }, [data?.location.slug]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -466,6 +536,27 @@ export default function LiveDemo() {
                     )}
                   </div>
                 </div>
+
+                {/* Share */}
+                {data.location.slug && (
+                  <div className="mt-6 p-5 rounded-2xl bg-slate-900/50 border border-slate-800">
+                    <h4 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
+                      <Share2 className="w-3.5 h-3.5" /> Share this report
+                    </h4>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <code className="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-400 truncate">
+                        {shareUrlFor(data.location.slug)}
+                      </code>
+                      <div className="flex gap-2 shrink-0">
+                        <CopyButton getText={() => shareUrlFor(data.location.slug!)} label="Copy link" />
+                        <CopyButton
+                          getText={() => buildShareSummary(data, shareUrlFor(data.location.slug!))}
+                          label="Copy summary"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Sources */}
                 <div className="mt-6 p-5 rounded-2xl bg-slate-900 border border-slate-800">

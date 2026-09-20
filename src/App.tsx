@@ -9,8 +9,10 @@ import MarketingStrategy from './components/MarketingStrategy';
 import LiveDemo from './components/LiveDemo';
 import Navigation from './components/Navigation';
 
+const isReportRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/report/');
+
 function App() {
-  const [activeSection, setActiveSection] = useState('hero');
+  const [activeSection, setActiveSection] = useState(isReportRoute ? 'demo' : 'hero');
 
   return (
     <div className="min-h-screen bg-slate-950 text-white overflow-x-hidden">

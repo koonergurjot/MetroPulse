@@ -11,7 +11,7 @@ import { sourceHealth } from './health.ts';
 import { BadRequestError, buildPulse, type PulseQuery } from './pulse.ts';
 import { headerClientIp, rateLimiter, type ClientIpResolver } from './rateLimit.ts';
 
-const CORS_HEADERS: Record<string, string> = {
+export const CORS_HEADERS: Record<string, string> = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,OPTIONS',
   'access-control-allow-headers': 'content-type',
@@ -41,7 +41,19 @@ function parseQuery(url: URL): PulseQuery {
     lat: num('lat'),
     lng: num('lng'),
     radiusM: num('radius'),
+    slug: url.searchParams.get('slug') ?? undefined,
   };
+}
+
+/**
+ * Shared by `/api/pulse`, `/api/og` and the `/report/<slug>` HTML rewrite so
+ * a report and its social card never disagree about how long the CDN may
+ * hold them.
+ */
+export function pulseCacheControl(degraded: boolean): string {
+  return degraded
+    ? 'public, max-age=0, s-maxage=15, stale-while-revalidate=60'
+    : 'public, max-age=15, s-maxage=30, stale-while-revalidate=120';
 }
 
 export interface HandlePulseOptions {
@@ -78,11 +90,7 @@ export async function handlePulseRequest(request: Request, options: HandlePulseO
     // mirror the shortest upstream TTL so the edge never serves something
     // meaningfully staler than the origin would.
     const degraded = pulse.sources.some((s) => s.status === 'error');
-    return json(pulse, 200, {
-      'cache-control': degraded
-        ? 'public, max-age=0, s-maxage=15, stale-while-revalidate=60'
-        : 'public, max-age=15, s-maxage=30, stale-while-revalidate=120',
-    });
+    return json(pulse, 200, { 'cache-control': pulseCacheControl(degraded) });
   } catch (err) {
     if (err instanceof BadRequestError) return json({ error: err.message }, 400);
     if (err instanceof Error && err.name === 'AbortError') return json({ error: 'Request cancelled.' }, 499);
