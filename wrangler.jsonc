@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "metropulse",
+  "main": "src/worker.ts",
+
+  // `nodejs_compat` from this date on populates `process.env` from vars and
+  // secrets, which is what `src/server/config.ts` reads. Do not move the
+  // compatibility date earlier than 2025-04-01 without changing how config is
+  // loaded.
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // `npm run build` writes here. Requests matching a static file are served
+  // from assets; everything else falls through to the Worker.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  "vars": {
+    // Workers have no filesystem, so the stop index must be an https URL in
+    // this environment. Upload the output of `npm run build:stops` and point
+    // this at it. The sample fixture path only works for local development.
+    "STOP_INDEX_PATH": ""
+  }
+
+  // TRANSLINK_API_KEY and BC_GEOCODER_API_KEY are secrets, not vars:
+  //   npx wrangler secret put TRANSLINK_API_KEY
+}

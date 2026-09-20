@@ -73,3 +73,23 @@ Every API response carries a `sources` array with each provider's attribution an
 string. Most BC open-data licences require that attribution be displayed — the UI must
 render it. TransLink's Open API is governed by its own Terms of Use, not an Open Government
 Licence; read it before launching a paid tier.
+
+## Deploying to Cloudflare Workers
+
+`wrangler.jsonc` serves the built Vite site from the assets binding and routes
+`/api/pulse` to the same handler the dev server uses.
+
+```bash
+npm run deploy:dry     # bundle and validate without deploying
+npm run deploy         # vite build, then wrangler deploy
+npx wrangler secret put TRANSLINK_API_KEY
+```
+
+If the Cloudflare project is connected through the Git integration, set its
+**build command** to `npm run build` and its **deploy command** to
+`npx wrangler deploy`. Without a build step there is no `dist/` for the assets
+binding to serve.
+
+Workers have no filesystem, so `STOP_INDEX_PATH` must be an **https URL** in
+this environment — upload the output of `npm run build:stops` and point the var
+at it. The local file path only works for the Node dev server.
