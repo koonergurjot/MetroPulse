@@ -1,8 +1,18 @@
 # MetroPulse — Repository Review
 
 Read-only audit, 2026-09-20. Branch `claude/nifty-davinci-w3we89` @ `f5f39c2`.
+
 Verified by running `npm install`, `npm test` (117 pass), `npm run typecheck` (clean),
-`npm run build` (clean), `npm audit`, and by executing the scorer directly.
+`npm run build` (clean), `npm audit`, and by executing the scorer directly to confirm
+issues #6 and #31 rather than inferring them from reading.
+
+**Verification limit worth knowing:** I could not reach the live deployment — this
+container's egress proxy denies `*.workers.dev` by policy (403 on CONNECT). So every
+claim below rests on the source, the test suite and local execution. The one place that
+matters is issue #31, where the *consequence* (a score published at exactly-half
+coverage) is verified by execution, but the *trigger* on Workers specifically (the stop
+index failing to load from a filesystem path) is inferred from `wrangler.jsonc` and
+`stopProvider.ts`. Confirm it with one `curl` against the deployed URL before acting.
 
 ---
 
@@ -13,14 +23,17 @@ framework-free TypeScript that fans out across five government APIs, degrades pe
 instead of failing, caches by how fast each feed actually changes, and hand-rolls a
 protobuf reader so it bundles for edge runtimes. 117 tests, all passing, all meaningful.
 
-Everything around it is unfinished or wrong. The landing page pitches a *different
-product* ("Should I go out today?", BC Parks, Vercel) than the one that was built. The
-stop index ships as a 10-row placeholder whose
-IDs match nothing real, so the flagship transit panel is empty on every fresh deploy. The
-"moat" — the delay archive — will exhaust a Supabase free tier in roughly a day because
-it re-inserts the entire forward-looking feed every five minutes with no dedup key, and
-its table has no row-level security. The share-card growth mechanism emits SVG, which
-Facebook, X and LinkedIn will not render.
+Everything around it is unfinished or wrong, and it is **already deployed and live**. The
+landing page pitches a *different product* ("Should I go out today?", BC Parks, Vercel)
+than the one that was built. The stop index ships as a 10-row placeholder whose IDs match
+nothing real, so the flagship transit panel is broken on every deploy — and because the
+five component weights sum to `0.9999999999999999` rather than `1.0`, the coverage guard
+that should withhold the score at half coverage evaluates `0.5000000000000001 < 0.5` and
+lets it through. The live site will publish "Pulse Score 100/100" for an address whose
+transit data failed to load. The "moat" — the delay archive — will exhaust a Supabase
+free tier in roughly a day because it re-inserts the entire forward-looking feed every
+five minutes with no dedup key, and its table has no row-level security. The share-card
+growth mechanism emits SVG, which Facebook, X and LinkedIn will not render.
 
 Business-wise: the blueprint's #1 monetization pick (realtor white-label) is the wrong
 first bet and its #2 (consumer $6/mo) should be cut. The only thing here nobody else has
@@ -91,7 +104,12 @@ Severity: **C**ritical / **H**igh / **M**edium / **L**ow. Effort: **S**mall (<½
 > full backend — 43 files under `src/server/`, plus `api/`, `src/worker.ts`,
 > `wrangler.jsonc` and `supabase/schema.sql`. PRs #2–#7 all merged into `main` as their
 > commit messages say. The numbering below is left as-is so the issue references in §4
-> and §7 stay valid. **Corrected count: 29 issues — 4 critical, 7 high, 12 medium, 6 low.**
+> and §7 stay valid. **Corrected count: 30 issues — 5 critical, 7 high, 12 medium, 6 low.**
+
+> **Added after the first pass (issue #31).** A Cloudflare Workers Builds integration
+> revealed the app is **already deployed and live** — every branch push builds and
+> deploys. That is not in itself a problem, but it moves issues #4, #5 and #31 from
+> "before you launch" to "in production right now."
 
 | # | Issue | Location | Sev | Eff | Suggested fix |
 |---|---|---|---|---|---|
@@ -99,6 +117,7 @@ Severity: **C**ritical / **H**igh / **M**edium / **L**ow. Effort: **S**mall (<½
 | 3 | **Supabase table has no RLS.** `delay_observations` is created with no `enable row level security` and no policies. Supabase grants the `anon` role access to `public` by default, so the table is readable — and writable — by anyone holding the publishable anon key, which ships in client bundles by design. | `supabase/schema.sql:5-26` | C | S | `alter table delay_observations enable row level security;` plus a read-only policy for `anon` (or none at all, and serve reads through a view/RPC). Service key stays server-side only. |
 | 4 | **Two unrated-limited paths into the full fan-out.** `/api/pulse` was hardened (PR #6) but `/api/og` and `/report/<slug>` both call `buildPulse` with an attacker-controlled address/slug and never touch the rate limiter. Anyone can burn the shared TransLink key and the DataBC geocoder quota with a loop over `/report/<random>`. | `src/worker.ts:84`, `src/worker.ts:92`; `src/server/og.ts:163`; limiter only in `src/server/handler.ts:74` | C | S | Extract the limiter into a wrapper applied to all three routes. Additionally: reject slugs that don't geocode with a cheap negative cache so repeat junk never re-hits upstream. |
 | 5 | **Transit is empty on every fresh deploy.** `STOP_INDEX_PATH` defaults to `data/stops.sample.csv` — ten rows with placeholder IDs (`DEV1001`…) that match nothing in the real feed. The real index is gitignored, built by a manual three-command recipe in the README, and has no scheduled job. Workers additionally requires it as an HTTPS URL, and `wrangler.jsonc` ships that var as `""`. So the flagship panel — the whole reason the product exists — renders blank until someone reads step 4 of the README. | `.env.example:9`; `data/stops.sample.csv`; `wrangler.jsonc:27`; `src/server/config.ts:88` | C | M | Add a weekly GitHub Actions job that downloads static GTFS, runs `build:stops`, and uploads the CSV to R2/a release asset; point `STOP_INDEX_PATH` at it. Until then, make an unset/sample index a loud `status: "error"` on the transit card with a real message, not a silent empty list. |
+| 31 | **Live production publishes a Pulse Score while transit is erroring — and only a floating-point accident lets it.** The five component weights (`0.35+0.15+0.20+0.20+0.10`) sum to `0.9999999999999999` in IEEE-754, not `1.0`. When both transit components are unavailable, available weight is exactly `0.5`, so `coverage` computes to **`0.5000000000000001`** — and the guard is `coverage < MIN_COVERAGE` (`0.5`), which is therefore **false**. The score is published from civic data alone. Verified by executing the scorer: with transit null and no civic records nearby, it returns **`value: 100`, `coverage: 0.5000000000000001`**. On Workers this is the *normal* path, not an edge case — `STOP_INDEX_PATH` is `""` in `wrangler.jsonc`, so `env()` falls back to the filesystem path `data/stops.sample.csv`, which `readSource` sends to `node:fs` on a runtime with no filesystem (inferred — I could not reach the live deploy to confirm, see note below). The blueprint's own rule is *"a score that quietly lies when a feed is down is worse than no product"*; a rounding error is currently breaking it in production. | `src/server/score.ts:149-155`; `src/server/gtfs/stopProvider.ts:15-20`; `wrangler.jsonc:27`; `src/server/config.ts:16-19` | C | S | Change the guard to `coverage < MIN_COVERAGE - 1e-9` is the wrong fix — it preserves the knife edge. Require *strictly more than half* the weight (`coverage <= MIN_COVERAGE` withholds), and normalise the weights to sum to exactly 1 (integers or a shared denominator). Add a test pinning the exact-half case, and a second asserting a stop-index failure withholds the score rather than publishing a civic-only number. |
 
 ### High
 
@@ -467,45 +486,48 @@ in this week exists to get it running safely.
 2. **Fix the archive before enabling the cron** — unique constraint, `upsert`, archive
    only the next unserved stop per trip, retention/rollup plan. *(issue #2)*
 3. **Enable RLS on `delay_observations`.** *(issue #3)*
-4. **Turn the snapshotter on.** Every day from here is archive you own.
-5. **Add `ci.yml` and `verify-sources.yml`.** *(issue #8)*
-6. **Build and host the real stop index; automate it weekly.** *(issue #5)*
-7. **`npm uninstall` the ten unused packages.** Clears the audit in one command.
+4. **Fix the coverage guard and normalise the weights**, so a failed transit fetch
+   withholds the score instead of publishing a civic-only 100. This is live right now and
+   it is a one-line change plus a test. *(issue #31)*
+5. **Turn the snapshotter on.** Every day from here is archive you own.
+6. **Add `ci.yml` and `verify-sources.yml`.** *(issue #8)*
+7. **Build and host the real stop index; automate it weekly.** *(issue #5)*
+8. **`npm uninstall` the ten unused packages.** Clears the audit in one command.
    *(issue #12)*
 
 ### Week 2 — make the product exist for a stranger
 
-8. **Rate-limit `/api/og` and `/report/<slug>`.** *(issue #4)*
-9. **Fix the inverted transit-access score** + regression test. *(issue #6)*
-10. **Replace the pitch deck with the product.** `/` is the search box; deck moves to
+9. **Rate-limit `/api/og` and `/report/<slug>`.** *(issue #4)*
+10. **Fix the inverted transit-access score** + regression test. *(issue #6)*
+11. **Replace the pitch deck with the product.** `/` is the search box; deck moves to
     `/about` or dies. *(issue #9)*
-11. **Rewrite `index.html`.** `lang="en-CA"`, OG/description/favicon/canonical, strip both
+12. **Rewrite `index.html`.** `lang="en-CA"`, OG/description/favicon/canonical, strip both
     sandbox scripts and the unused CDN stylesheet. *(issue #10)*
-12. **Render raw civic records** under the count tiles. *(issue #15)*
-13. **PNG og:images.** *(issue #7)*
-14. **Add `/legal`.** *(issue #24)*
+13. **Render raw civic records** under the count tiles. *(issue #15)*
+14. **PNG og:images.** *(issue #7)*
+15. **Add `/legal`.** *(issue #24)*
 
 ### Week 3 — make the data honest and the coverage wider
 
-15. **Date/status filters on the civic queries** so "recent" and "open" are true.
+16. **Date/status filters on the civic queries** so "recent" and "open" are true.
     *(issue #11)*
-16. **Harden `verify:sources`** to assert field names, then actually run it against
+17. **Harden `verify:sources`** to assert field names, then actually run it against
     Surrey and Burnaby and fix what it finds. *(issue #18)*
-17. **Add Richmond and New Westminster** — one config entry and one registry row each.
+18. **Add Richmond and New Westminster** — one config entry and one registry row each.
     Three municipalities becomes five in an afternoon.
-18. **Coverage transparency page**, generated from `LOCALITY_REGISTRY`.
-19. **Ship the map.** *(§4, item 4)*
-20. **Generate neighbourhood SEO pages.** They need two months to compound — start now.
+19. **Coverage transparency page**, generated from `LOCALITY_REGISTRY`.
+20. **Ship the map.** *(§4, item 4)*
+21. **Generate neighbourhood SEO pages.** They need two months to compound — start now.
 
 ### Week 4 — first revenue motion
 
-21. **Publish The Late Index v0** from three weeks of archive. Partial is fine; label the
+22. **Publish The Late Index v0** from three weeks of archive. Partial is fine; label the
     window honestly.
-22. **Pitch four outlets** — Daily Hive, Vancouver Is Awesome, The Tyee, CityNews.
-23. **Send ten named outreach emails** to the consultancies and BIAs in §6, offering a
+23. **Pitch four outlets** — Daily Hive, Vancouver Is Awesome, The Tyee, CityNews.
+24. **Send ten named outreach emails** to the consultancies and BIAs in §6, offering a
     free first query.
-24. **Free API keys to UBC SCARP, UBC REACT, SFU City Program.**
-25. **Start the r/vancouver month** — answer address questions with real report links, no
+25. **Free API keys to UBC SCARP, UBC REACT, SFU City Program.**
+26. **Start the r/vancouver month** — answer address questions with real report links, no
     launch post, mods messaged first.
 
 ### Explicitly *not* in the 30 days
