@@ -1,12 +1,29 @@
 import { cache, type CachePolicy } from '../cache.ts';
+import { sourceHealth } from '../health.ts';
 import { UpstreamError } from '../http.ts';
 import type { SourceMeta, SourceResult } from '../types.ts';
+
+/** JSON, one line per failure. Never includes the upstream URL or an API key — see `toPublicMessage`. */
+function logUpstreamFailure(entry: { sourceId: string; status: number | null; durationMs: number; message: string }): void {
+  console.error(
+    JSON.stringify({
+      level: 'error',
+      event: 'upstream_failure',
+      timestamp: new Date().toISOString(),
+      ...entry,
+    }),
+  );
+}
 
 /**
  * Runs a source loader and normalises everything — success, cache-hit,
  * timeout, upstream 500 — into a `SourceResult`. Nothing in this service is
  * allowed to throw past this boundary: a dead municipal portal greys out one
  * card, it does not 500 the page.
+ *
+ * The loader is wrapped (rather than the whole cache resolution) so health
+ * tracking and failure logging reflect real upstream calls even when
+ * `cache.resolve` masks the failure by serving a stale value.
  */
 export async function runSource<T>(
   meta: SourceMeta,
@@ -15,8 +32,22 @@ export async function runSource<T>(
   loader: () => Promise<T>,
 ): Promise<SourceResult<T>> {
   const startedAt = Date.now();
+  const trackedLoader = async (): Promise<T> => {
+    try {
+      const value = await loader();
+      sourceHealth.recordSuccess(meta);
+      return value;
+    } catch (err) {
+      const status = err instanceof UpstreamError ? err.status : null;
+      const message = toPublicMessage(err);
+      sourceHealth.recordError(meta, message);
+      logUpstreamFailure({ sourceId: meta.id, status, durationMs: Date.now() - startedAt, message });
+      throw err;
+    }
+  };
+
   try {
-    const hit = await cache.resolve(cacheKey, policy, loader);
+    const hit = await cache.resolve(cacheKey, policy, trackedLoader);
     return {
       meta,
       status: hit.stale ? 'stale' : 'ok',

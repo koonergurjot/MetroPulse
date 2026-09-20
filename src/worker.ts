@@ -5,7 +5,7 @@
  * to the same framework-free handler used by the Node dev server and the
  * Vercel/Netlify entry in `api/pulse.ts`.
  */
-import { handlePulseRequest } from './server/handler.ts';
+import { handleHealthRequest, handlePulseRequest } from './server/handler.ts';
 
 interface Env {
   /** Static assets binding, configured in wrangler.jsonc. */
@@ -16,6 +16,7 @@ export default {
   fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/api/pulse') return handlePulseRequest(request);
+    if (url.pathname === '/api/health') return handleHealthRequest(request);
     return env.ASSETS.fetch(request);
   },
 };

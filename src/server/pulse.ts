@@ -6,6 +6,7 @@
  * reliability, fanned out concurrently behind a single request budget and
  * merged into something a frontend can render without knowing any of that.
  */
+import { hasControlCharacters, normalizeAddress } from './address.ts';
 import { cache } from './cache.ts';
 import { config } from './config.ts';
 import { isValidLatLng, METRO_VANCOUVER_BBOX, withinBBox } from './geo.ts';
@@ -180,7 +181,13 @@ async function resolveLocation(query: PulseQuery, signal?: AbortSignal): Promise
     return { ...point, address: null, locality: null, confidence: null, source: 'coordinates' };
   }
 
-  const address = query.address?.trim();
+  const rawAddress = query.address;
+  if (!rawAddress || !rawAddress.trim()) throw new BadRequestError('Provide either an address or lat/lng.');
+  if (hasControlCharacters(rawAddress)) throw new BadRequestError('Address contains invalid characters.');
+
+  // Collapse whitespace before it reaches the cache key so "  Main  St " and
+  // "Main St" share one entry instead of two upstream geocoder calls.
+  const address = normalizeAddress(rawAddress);
   if (!address) throw new BadRequestError('Provide either an address or lat/lng.');
   if (address.length > 200) throw new BadRequestError('That address is too long.');
 
