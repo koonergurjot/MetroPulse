@@ -106,6 +106,9 @@ export const config = {
     maxRecordsPerSource: Number(env('MAX_RECORDS_PER_SOURCE', '40')),
     /** Budget for the whole fan-out. Sources that miss it are reported degraded. */
     fanoutBudgetMs: Number(env('FANOUT_BUDGET_MS', '6000')),
+    /** Per-IP sliding window for `/api/pulse`. Set to 0 to disable rate limiting. */
+    rateLimitWindowMs: Number(env('RATE_LIMIT_WINDOW_MS', '60000')),
+    rateLimitMaxRequests: Number(env('RATE_LIMIT_MAX_REQUESTS', '30')),
   },
 } as const;
 
