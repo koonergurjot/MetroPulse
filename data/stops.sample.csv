@@ -1,0 +1,11 @@
+stop_id,stop_code,stop_name,stop_lat,stop_lon
+DEV1001,1001,Sample Stop - W Georgia St @ Denman St,49.290300,-123.136200
+DEV1002,1002,Sample Stop - Robson St @ Bute St,49.286700,-123.128900
+DEV1003,1003,Sample Stop - Burrard Station,49.285600,-123.120400
+DEV1004,1004,Sample Stop - Commercial-Broadway Station,49.262500,-123.069300
+DEV1005,1005,Sample Stop - Metrotown Station,49.226200,-123.003800
+DEV1006,1006,Sample Stop - New Westminster Station,49.201300,-122.912200
+DEV1007,1007,Sample Stop - Surrey Central Station,49.189100,-122.848200
+DEV1008,1008,Sample Stop - King George Station,49.182700,-122.844900
+DEV1009,1009,Sample Stop - Lonsdale Quay,49.309900,-123.082800
+DEV1010,1010,Sample Stop - Richmond-Brighouse Station,49.168200,-123.136400

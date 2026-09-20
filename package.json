@@ -1,11 +1,16 @@
 {
-  "name": "sandbox-workspace",
+  "name": "metropulse",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:api": "node --experimental-strip-types scripts/dev-api.ts",
+    "build:stops": "node --experimental-strip-types scripts/build-stops.ts",
+    "verify:sources": "node --experimental-strip-types scripts/verify-sources.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -25,12 +30,14 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.7",
     "@types/canvas-confetti": "^1.6.4",
+    "@types/node": "^26.6.2",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/uuid": "^9.0.7",
     "@vitejs/plugin-react": "^4.3.4",
     "tailwindcss": "^4.1.7",
     "typescript": "^5.7.0",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^5.0.1"
   }
 }
