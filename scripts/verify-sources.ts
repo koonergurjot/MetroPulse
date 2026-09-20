@@ -25,6 +25,24 @@ const odsUrl = (dataset: string): string => {
   return url.toString();
 };
 
+const arcgisUrl = (base: string, layer: string): string => {
+  const dLat = radius / 111_320;
+  const dLng = dLat / Math.max(Math.cos((centre.lat * Math.PI) / 180), 1e-6);
+  const url = new URL(`${base}/${layer}/query`);
+  url.searchParams.set(
+    'geometry',
+    [centre.lng - dLng, centre.lat - dLat, centre.lng + dLng, centre.lat + dLat].join(','),
+  );
+  url.searchParams.set('geometryType', 'esriGeometryEnvelope');
+  url.searchParams.set('inSR', '4326');
+  url.searchParams.set('spatialRel', 'esriSpatialRelIntersects');
+  url.searchParams.set('outFields', '*');
+  url.searchParams.set('where', '1=1');
+  url.searchParams.set('resultRecordCount', '1');
+  url.searchParams.set('f', 'geojson');
+  return url.toString();
+};
+
 const withKey = (base: string): string => {
   const url = new URL(base);
   if (config.translink.apiKey) url.searchParams.set('apikey', config.translink.apiKey);
@@ -39,6 +57,8 @@ const checks: Check[] = [
   { name: 'Vancouver 311', url: odsUrl(config.vancouver.datasets.serviceRequests) },
   { name: 'Vancouver building permits', url: odsUrl(config.vancouver.datasets.buildingPermits) },
   { name: 'Vancouver rental standards', url: odsUrl(config.vancouver.datasets.rentalStandards) },
+  { name: 'Surrey building permits', url: arcgisUrl(config.surrey.base, config.surrey.layers.buildingPermits) },
+  { name: 'Burnaby building permits', url: arcgisUrl(config.burnaby.base, config.burnaby.layers.buildingPermits) },
   {
     name: 'DriveBC Open511',
     url: `${config.drivebc.base}/events?bbox=-123.2,49.2,-123.0,49.35&status=ACTIVE&format=json`,

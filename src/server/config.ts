@@ -56,6 +56,26 @@ export const config = {
     licence: 'OGL-Vancouver',
   },
 
+  /** City of Surrey Open Data (ArcGIS REST FeatureServer). */
+  surrey: {
+    base: env('SURREY_ARCGIS_BASE', 'https://cosmos.surrey.ca/arcgis/rest/services/OpenData/BuildingPermits/FeatureServer'),
+    layers: {
+      buildingPermits: env('SURREY_PERMITS_LAYER', '0'),
+    },
+    attribution: 'Contains information licensed under the City of Surrey Open Data Licence',
+    licence: 'Surrey-ODC',
+  },
+
+  /** City of Burnaby Open Data (ArcGIS REST FeatureServer). */
+  burnaby: {
+    base: env('BURNABY_ARCGIS_BASE', 'https://gis.burnaby.ca/arcgis/rest/services/OpenData/BuildingPermits/FeatureServer'),
+    layers: {
+      buildingPermits: env('BURNABY_PERMITS_LAYER', '0'),
+    },
+    attribution: 'Contains information licensed under the City of Burnaby Open Data Licence',
+    licence: 'Burnaby-ODC',
+  },
+
   /** DriveBC Open511 road events. No key, no rate limit published. */
   drivebc: {
     base: env('DRIVEBC_OPEN511_BASE', 'https://api.open511.gov.bc.ca'),

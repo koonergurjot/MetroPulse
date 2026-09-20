@@ -11,6 +11,7 @@ import { config } from './config.ts';
 import { isValidLatLng, METRO_VANCOUVER_BBOX, withinBBox } from './geo.ts';
 import { loadStopIndex } from './gtfs/stopProvider.ts';
 import { computePulseScore } from './score.ts';
+import { BURNABY_META, fetchBurnabyBuildingPermits, fetchSurreyBuildingPermits, SURREY_META } from './sources/arcgis.ts';
 import { DRIVEBC_META, fetchRoadEvents } from './sources/drivebc.ts';
 import { GEOCODER_META, geocodeAddress } from './sources/geocoder.ts';
 import { runSource, skippedSource, toPublicMessage } from './sources/base.ts';
@@ -24,6 +25,7 @@ import {
 } from './sources/vancouver.ts';
 import type {
   CivicRecord,
+  LatLng,
   PulseResponse,
   ResolvedLocation,
   SourceMeta,
@@ -65,11 +67,109 @@ const POLICY = {
 const geoKey = (lat: number, lng: number, radiusM: number): string =>
   `${lat.toFixed(3)},${lng.toFixed(3)},${radiusM}`;
 
-const CIVIC_META = (label: string, id: string): SourceMeta => ({
-  ...VANCOUVER_META,
-  id,
-  label,
-});
+/** The three civic dataset shapes `PulseResponse.civic` exposes; every municipal adapter maps into these. */
+export type CivicCategory = 'serviceRequests' | 'permits' | 'rentalIssues';
+
+type CategoryLoader = (centre: LatLng, radiusM: number, signal?: AbortSignal) => Promise<CivicRecord[]>;
+
+export interface LocalityEntry {
+  /** Human name used in labels and skip reasons, e.g. "Vancouver". */
+  cityLabel: string;
+  /** Attribution/licence for this municipality's portal. */
+  base: SourceMeta;
+  /** Cache-key and source-id prefix, e.g. "van". */
+  cachePrefix: string;
+  categories: Partial<Record<CivicCategory, CategoryLoader>>;
+}
+
+const CATEGORY_SUFFIX: Record<CivicCategory, string> = {
+  serviceRequests: '311',
+  permits: 'permits',
+  rentalIssues: 'rental',
+};
+
+const CATEGORY_LABEL: Record<CivicCategory, string> = {
+  serviceRequests: '311 service requests',
+  permits: 'building permits',
+  rentalIssues: 'rental standards',
+};
+
+/**
+ * One entry per municipality this app has an adapter for. A locality with no
+ * entry here, or an entry missing a category, still produces a `skipped`
+ * `SourceResult` with a clear reason — never a silent empty array, which
+ * reads to a user as "nothing is happening here".
+ */
+const LOCALITY_REGISTRY: LocalityEntry[] = [
+  {
+    cityLabel: 'Vancouver',
+    base: VANCOUVER_META,
+    cachePrefix: 'van',
+    categories: {
+      serviceRequests: fetchServiceRequests,
+      permits: fetchBuildingPermits,
+      rentalIssues: fetchRentalIssues,
+    },
+  },
+  {
+    cityLabel: 'Surrey',
+    base: SURREY_META,
+    cachePrefix: 'surrey',
+    categories: {
+      permits: fetchSurreyBuildingPermits,
+    },
+  },
+  {
+    cityLabel: 'Burnaby',
+    base: BURNABY_META,
+    cachePrefix: 'burnaby',
+    categories: {
+      permits: fetchBurnabyBuildingPermits,
+    },
+  },
+];
+
+export function findLocalityEntry(locality: string | null): LocalityEntry | undefined {
+  const normalized = locality?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  return LOCALITY_REGISTRY.find((entry) => entry.cityLabel.toLowerCase() === normalized);
+}
+
+function categoryMeta(entry: LocalityEntry | undefined, category: CivicCategory): SourceMeta {
+  if (!entry) {
+    return { id: `civic.${CATEGORY_SUFFIX[category]}`, label: CATEGORY_LABEL[category], attribution: '', licence: '' };
+  }
+  return {
+    ...entry.base,
+    id: `${entry.cachePrefix}.${CATEGORY_SUFFIX[category]}`,
+    label: `${entry.cityLabel} ${CATEGORY_LABEL[category]}`,
+  };
+}
+
+/** Runs a municipal adapter's category through `runSource`, or produces a `skipped` result with a clear reason. */
+export function categoryResult(
+  entry: LocalityEntry | undefined,
+  category: CivicCategory,
+  centre: LatLng,
+  radiusM: number,
+  key: string,
+  locality: string | null,
+  signal?: AbortSignal,
+): Promise<SourceResult<CivicRecord[]>> {
+  const meta = categoryMeta(entry, category);
+  const loader = entry?.categories[category];
+  if (!loader) {
+    const reason = entry
+      ? `${entry.cityLabel} does not publish ${CATEGORY_LABEL[category]} through this adapter yet.`
+      : locality
+        ? `Not yet wired up for ${locality}.`
+        : 'Municipality unknown for this location; only coordinates were provided.';
+    return Promise.resolve(skippedSource<CivicRecord[]>(meta, reason));
+  }
+  return runSource(meta, `${entry!.cachePrefix}:${CATEGORY_SUFFIX[category]}:${key}`, POLICY.civic, () =>
+    loader(centre, radiusM, signal),
+  );
+}
 
 async function resolveLocation(query: PulseQuery, signal?: AbortSignal): Promise<ResolvedLocation> {
   if (isValidLatLng({ lat: query.lat, lng: query.lng })) {
@@ -96,15 +196,6 @@ async function resolveLocation(query: PulseQuery, signal?: AbortSignal): Promise
   return resolved;
 }
 
-/**
- * Vancouver's portal only holds Vancouver records. Rather than return an empty
- * list that reads as "nothing is happening here", suburbs get an explicit
- * `skipped` source so the UI can say which signals are not available yet.
- */
-function usesVancouverDatasets(locality: string | null): boolean {
-  return (locality ?? '').toLowerCase().includes('vancouver') && !(locality ?? '').toLowerCase().includes('north');
-}
-
 export async function buildPulse(query: PulseQuery, signal?: AbortSignal): Promise<PulseResponse> {
   const startedAt = Date.now();
 
@@ -125,8 +216,10 @@ export async function buildPulse(query: PulseQuery, signal?: AbortSignal): Promi
     ? ((AbortSignal as { any?: (s: AbortSignal[]) => AbortSignal }).any?.([budget.signal, signal]) ?? budget.signal)
     : budget.signal;
 
-  const municipalOk = usesVancouverDatasets(location.locality) || location.source === 'coordinates';
-  const skipReason = `Not yet wired up for ${location.locality ?? 'this municipality'}.`;
+  // Locality is null when the caller supplied raw coordinates, so it never
+  // matches a registry entry — we genuinely don't know which municipality's
+  // portal to query. `categoryResult` reports that as a clear skip reason.
+  const localityEntry = findLocalityEntry(location.locality);
 
   try {
     const [tripUpdates, alerts, serviceRequests, permits, rentalIssues, roadEvents] = await Promise.all([
@@ -134,21 +227,9 @@ export async function buildPulse(query: PulseQuery, signal?: AbortSignal): Promi
       runSource({ ...TRANSLINK_META, id: 'translink.alerts', label: 'TransLink service alerts' }, 'translink:alerts', POLICY.alerts, () =>
         fetchAlerts(fanoutSignal),
       ),
-      municipalOk
-        ? runSource(CIVIC_META('Vancouver 311', 'vancouver.311'), `van:311:${key}`, POLICY.civic, () =>
-            fetchServiceRequests(centre, radiusM, fanoutSignal),
-          )
-        : skippedSource<CivicRecord[]>(CIVIC_META('Vancouver 311', 'vancouver.311'), skipReason),
-      municipalOk
-        ? runSource(CIVIC_META('Vancouver building permits', 'vancouver.permits'), `van:permits:${key}`, POLICY.civic, () =>
-            fetchBuildingPermits(centre, radiusM, fanoutSignal),
-          )
-        : skippedSource<CivicRecord[]>(CIVIC_META('Vancouver building permits', 'vancouver.permits'), skipReason),
-      municipalOk
-        ? runSource(CIVIC_META('Vancouver rental standards', 'vancouver.rental'), `van:rental:${key}`, POLICY.civic, () =>
-            fetchRentalIssues(centre, radiusM, fanoutSignal),
-          )
-        : skippedSource<CivicRecord[]>(CIVIC_META('Vancouver rental standards', 'vancouver.rental'), skipReason),
+      categoryResult(localityEntry, 'serviceRequests', centre, radiusM, key, location.locality, fanoutSignal),
+      categoryResult(localityEntry, 'permits', centre, radiusM, key, location.locality, fanoutSignal),
+      categoryResult(localityEntry, 'rentalIssues', centre, radiusM, key, location.locality, fanoutSignal),
       runSource(DRIVEBC_META, `drivebc:${key}`, POLICY.roads, () => fetchRoadEvents(centre, radiusM, fanoutSignal)),
     ]);
 
