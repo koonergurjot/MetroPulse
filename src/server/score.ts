@@ -57,7 +57,7 @@ function transitAccess(transit: TransitSnapshot | null): ScoreComponent {
   const nearest = stops[0].distanceM;
   const proximity = ramp(nearest, 150, 900);
   const choice = ramp(stops.length, 6, 1);
-  const score = Math.round(clamp(0.75 * proximity + 0.25 * (100 - choice)));
+  const score = Math.round(clamp(0.75 * proximity + 0.25 * choice));
   return {
     ...base,
     score,
@@ -69,7 +69,7 @@ function transitAccess(transit: TransitSnapshot | null): ScoreComponent {
 function quietness(serviceRequests: CivicRecord[], roadEvents: CivicRecord[], available: boolean): ScoreComponent {
   const base = { key: 'quietness', label: 'Street-level disruption', weight: 0.2 };
   if (!available) {
-    return { ...base, score: 0, available: false, reason: 'Municipal service-request data unavailable.' };
+    return { ...base, score: 0, available: false, reason: 'Service-request or road-event data unavailable; disruption cannot be assessed.' };
   }
   const closures = roadEvents.filter((e) => e.kind.includes('construction') || e.kind.includes('closure'));
   const signals = serviceRequests.length + closures.length * 2;
@@ -80,8 +80,8 @@ function quietness(serviceRequests: CivicRecord[], roadEvents: CivicRecord[], av
     available: true,
     reason:
       signals === 0
-        ? 'No open service requests or road closures within the radius.'
-        : `${serviceRequests.length} open service ${plural(serviceRequests.length, 'request', 'requests')} and ${closures.length} road ${plural(closures.length, 'closure', 'closures')} nearby.`,
+        ? 'No service requests or road closures in the returned records.'
+        : `${serviceRequests.length} service ${plural(serviceRequests.length, 'request', 'requests')} and ${closures.length} road ${plural(closures.length, 'closure', 'closures')} nearby.`,
   };
 }
 
@@ -99,8 +99,8 @@ function constructionPressure(permits: CivicRecord[], available: boolean): Score
     available: true,
     reason:
       permits.length === 0
-        ? 'No recently issued building permits within the radius.'
-        : `${permits.length} recent ${plural(permits.length, 'permit', 'permits')} nearby, ${closeRange} of them within 200 m.`,
+        ? 'No building permits in the returned records.'
+        : `${permits.length} ${plural(permits.length, 'permit', 'permits')} nearby, ${closeRange} of them within 200 m.`,
   };
 }
 
@@ -129,19 +129,20 @@ export interface ScoreInputs {
   roadEvents: CivicRecord[];
   availability: {
     civic: boolean;
+    roads: boolean;
     permits: boolean;
     rental: boolean;
   };
 }
 
-/** Below this share of available weight, we show components but withhold the number. */
+/** Require a majority of available weight; half alone cannot represent the whole report. */
 export const MIN_COVERAGE = 0.5;
 
 export function computePulseScore(inputs: ScoreInputs): PulseScore {
   const components: ScoreComponent[] = [
     transitReliability(inputs.transit),
     transitAccess(inputs.transit),
-    quietness(inputs.serviceRequests, inputs.roadEvents, inputs.availability.civic),
+    quietness(inputs.serviceRequests, inputs.roadEvents, inputs.availability.civic && inputs.availability.roads),
     constructionPressure(inputs.permits, inputs.availability.permits),
     buildingCare(inputs.rentalIssues, inputs.availability.rental),
   ];
@@ -150,7 +151,7 @@ export function computePulseScore(inputs: ScoreInputs): PulseScore {
   const availableWeight = components.reduce((sum, c) => (c.available ? sum + c.weight : sum), 0);
   const coverage = totalWeight > 0 ? availableWeight / totalWeight : 0;
 
-  if (availableWeight === 0 || coverage < MIN_COVERAGE) {
+  if (availableWeight === 0 || coverage <= MIN_COVERAGE + Number.EPSILON) {
     return { value: null, components, coverage };
   }
 

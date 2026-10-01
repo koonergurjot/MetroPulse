@@ -13,14 +13,10 @@ import {
   MinusCircle,
   Info,
   Loader2,
-  ClipboardList,
-  Building2,
-  Home,
-  Construction,
 } from 'lucide-react';
 import { Check, Copy, Share2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PulseResponse, ScoreComponent, SourceResult, SourceStatus } from '../server/types';
+import type { PulseResponse, CivicRecord, ScoreComponent, SourceResult, SourceStatus } from '../server/types';
 
 type SourceCard = Omit<SourceResult<unknown>, 'data'>;
 type Query = { address: string } | { lat: number; lng: number } | { slug: string };
@@ -266,6 +262,29 @@ function CopyButton({ getText, label }: { getText: () => string; label: string }
   );
 }
 
+function CivicDetails({ label, records, source }: { label: string; records: CivicRecord[]; source?: SourceCard }) {
+  const available = source?.status === 'ok' || source?.status === 'stale';
+  return (
+    <details className="p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+      <summary className="cursor-pointer text-sm font-medium text-slate-200">
+        {label} · {available ? `${records.length} returned${source?.status === 'stale' ? ' · Cached' : ''}` : 'Unavailable'}
+      </summary>
+      <div className="mt-3 space-y-3 text-xs text-slate-400">
+        {source && <p>{sourceMessage(source)}</p>}
+        {available && records.length === 0 && <p>No matching records returned by this source.</p>}
+        {available && records.map((record, i) => (
+          <article key={`${record.id}-${i}`} className="border-t border-slate-800 pt-3">
+            <p className="font-medium text-slate-200">{record.title}</p>
+            {record.detail && <p className="mt-1">{record.detail}</p>}
+            <p className="mt-1">{record.distanceM} m away · {record.date ?? 'Date not provided'}</p>
+            <p className="mt-1 text-slate-500">Record {record.id} · {record.lat.toFixed(5)}, {record.lng.toFixed(5)}</p>
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export default function LiveDemo() {
   const [addressInput, setAddressInput] = useState('');
   const [data, setData] = useState<PulseResponse | null>(null);
@@ -290,7 +309,7 @@ export default function LiveDemo() {
       setData(body as PulseResponse);
     } catch {
       if (id !== requestId.current) return;
-      setError('Could not reach the MetroPulse API. Is `npm run dev:api` running?');
+      setError('Could not reach the MetroPulse API. Please try again in a moment.');
       setData(null);
     } finally {
       if (id === requestId.current) setLoading(false);
@@ -353,11 +372,11 @@ export default function LiveDemo() {
 
   const civicStats = data
     ? [
-        { label: '311 requests', count: data.civic.serviceRequests.length, icon: ClipboardList },
-        { label: 'Building permits', count: data.civic.permits.length, icon: Building2 },
-        { label: 'Rental issues', count: data.civic.rentalIssues.length, icon: Home },
-        { label: 'Road events', count: data.civic.roadEvents.length, icon: Construction },
-      ]
+        { label: '311 requests', records: data.civic.serviceRequests, suffix: '.311' },
+        { label: 'Building permits', records: data.civic.permits, suffix: '.permits' },
+        { label: 'Rental issues', records: data.civic.rentalIssues, suffix: '.rental' },
+        { label: 'Road events', records: data.civic.roadEvents, suffix: 'drivebc.open511' },
+      ].map(category => ({ ...category, source: data.sources.find(source => source.meta.id.endsWith(category.suffix)) }))
     : [];
 
   return (
@@ -368,12 +387,12 @@ export default function LiveDemo() {
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
               <Activity className="w-5 h-5 text-emerald-400" />
             </div>
-            <span className="text-emerald-400 font-medium text-sm uppercase tracking-wider">Live Demo</span>
+            <span className="text-emerald-400 font-medium text-sm uppercase tracking-wider">Your next neighborhood</span>
           </div>
 
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">MetroPulse Dashboard</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">Know the block before you sign.</h2>
           <p className="text-xl text-slate-400 mb-8 max-w-3xl">
-            Real address report — pulled live from TransLink, BC civic open data, and DriveBC.
+            Look beyond the listing. Explore transit predictions, building permits, rental issues, and road events near a Metro Vancouver address.
           </p>
 
           {/* Address form */}
@@ -382,6 +401,7 @@ export default function LiveDemo() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input
                 type="text"
+                aria-label="Metro Vancouver address"
                 value={addressInput}
                 onChange={(e) => setAddressInput(e.target.value)}
                 placeholder="123 Main St, Vancouver, BC"
@@ -462,7 +482,7 @@ export default function LiveDemo() {
                     </div>
                     {data.score.value === null && (
                       <div className="mt-3 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-lg text-center leading-relaxed">
-                        Composite score withheld — fewer than half of the weighted components had data for this
+                        Composite score withheld — no more than half of the weighted components had data for this
                         address. The components below are still shown individually.
                       </div>
                     )}
@@ -483,13 +503,11 @@ export default function LiveDemo() {
                     </div>
 
                     {civicStats.length > 0 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {civicStats.map((stat) => (
-                          <div key={stat.label} className="p-3 rounded-xl bg-slate-900/50 border border-slate-800 text-center">
-                            <stat.icon className="w-4 h-4 text-slate-400 mx-auto mb-1.5" />
-                            <div className="text-lg font-bold text-white">{stat.count}</div>
-                            <div className="text-[11px] text-slate-500">{stat.label}</div>
-                          </div>
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-bold">What’s happening nearby?</h3>
+                        <p className="text-xs text-slate-400">Expand a category to inspect returned records. Counts may be limited by the provider; permits are not proof of active construction.</p>
+                        {civicStats.map(category => (
+                          <CivicDetails key={category.label} label={category.label} records={category.records} source={category.source} />
                         ))}
                       </div>
                     )}

@@ -276,6 +276,7 @@ export async function buildPulse(query: PulseQuery, signal?: AbortSignal): Promi
       rentalIssues: rentalIssues.data ?? [],
       roadEvents: roadEvents.data ?? [],
       availability: {
+        roads: roadEvents.status === 'ok' || roadEvents.status === 'stale',
         civic: serviceRequests.status === 'ok' || serviceRequests.status === 'stale',
         permits: permits.status === 'ok' || permits.status === 'stale',
         rental: rentalIssues.status === 'ok' || rentalIssues.status === 'stale',

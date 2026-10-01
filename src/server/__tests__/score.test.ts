@@ -29,7 +29,7 @@ const inputs = (overrides: Partial<ScoreInputs> = {}): ScoreInputs => ({
   permits: [],
   rentalIssues: [],
   roadEvents: [],
-  availability: { civic: true, permits: true, rental: true },
+  availability: { civic: true, roads: true, permits: true, rental: true },
   ...overrides,
 });
 
@@ -63,7 +63,7 @@ describe('computePulseScore', () => {
   it('drops the weight of an unavailable source instead of scoring it zero', () => {
     const full = computePulseScore(inputs());
     const partial = computePulseScore(
-      inputs({ availability: { civic: true, permits: false, rental: true } }),
+      inputs({ availability: { civic: true, roads: true, permits: false, rental: true } }),
     );
     expect(partial.coverage).toBeLessThan(1);
     // Losing a source we would have scored well on must not tank the composite.
@@ -72,7 +72,7 @@ describe('computePulseScore', () => {
 
   it('withholds the number when coverage is too thin', () => {
     const score = computePulseScore(
-      inputs({ transit: null, availability: { civic: false, permits: false, rental: true } }),
+      inputs({ transit: null, availability: { civic: false, roads: true, permits: false, rental: true } }),
     );
     expect(score.value).toBeNull();
     expect(score.coverage).toBeLessThan(MIN_COVERAGE);
@@ -86,6 +86,25 @@ describe('computePulseScore', () => {
       expect(component.score).toBeGreaterThanOrEqual(0);
       expect(component.score).toBeLessThanOrEqual(100);
     }
+  });
+
+  it('rewards additional equally close stops', () => {
+    const one = transit();
+    const six = transit({ stops: Array.from({ length: 6 }, (_, i) => ({ ...one.stops[0], stopId: String(i) })) });
+    const access = (t: TransitSnapshot) => computePulseScore(inputs({ transit: t })).components.find(c => c.key === 'transit_access')!.score;
+    expect(access(six)).toBeGreaterThan(access(one));
+  });
+
+  it('withholds a civic-only score at exactly half coverage', () => {
+    const score = computePulseScore(inputs({ transit: null }));
+    expect(score.coverage).toBeCloseTo(0.5);
+    expect(score.value).toBeNull();
+  });
+
+  it('excludes disruption when road data is unavailable', () => {
+    const score = computePulseScore(inputs({ availability: { civic: true, roads: false, permits: true, rental: true } }));
+    expect(score.components.find(c => c.key === 'quietness')!.available).toBe(false);
+    expect(score.coverage).toBeCloseTo(0.8);
   });
 
   it('is deterministic', () => {
