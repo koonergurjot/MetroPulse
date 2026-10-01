@@ -7,9 +7,8 @@ name: Snapshot TransLink delays
 # the archive as expected, not a bug.
 #
 # Requires SUPABASE_URL and SUPABASE_SERVICE_KEY repository secrets to
-# persist anywhere durable. Without them the job falls back to writing
-# data/snapshots/*.jsonl inside the disposable runner, which is discarded
-# when the job ends.
+# persist anywhere durable. The scheduled job fails when storage secrets
+# are missing rather than discarding JSONL output with the disposable runner.
 on:
   schedule:
     - cron: '*/5 * * * *'
@@ -24,13 +23,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci
 
       - run: node --experimental-strip-types scripts/snapshot.ts
+        # A scheduled archive must never silently write to a disposable runner.
+        # Local invocations can still use the JSONL development sink.
         env:
+          REQUIRE_DURABLE_SNAPSHOT: "1"
           TRANSLINK_API_KEY: ${{ secrets.TRANSLINK_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

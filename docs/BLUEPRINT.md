@@ -182,7 +182,7 @@ Nothing throws past that boundary. A dead portal greys out one card; it does not
 page, and — critically — it does not silently score as "zero problems found."
 
 The score handles this by **removing an unavailable component's weight** rather than scoring
-it zero, and reporting the resulting `coverage`. Below 50% coverage the number is withheld
+it zero, and reporting the resulting `coverage`. At or below 50% coverage the number is withheld
 entirely and the UI shows the components it does have. A score a user can't interrogate is a
 score they won't trust; a score that quietly lies when a feed is down is worse than no
 product.
@@ -342,7 +342,7 @@ Run it:
 
 ```bash
 npm install
-npm test                     # 53 tests
+npm test                     # offline backend regression suite
 npm run typecheck
 TRANSLINK_API_KEY=… npm run dev:api
 curl 'http://localhost:8787/api/pulse?address=555+W+Hastings+St+Vancouver'

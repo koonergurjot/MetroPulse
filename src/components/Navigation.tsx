@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MapPin, Lightbulb, Network, Layers, Server, Activity, Megaphone } from 'lucide-react';
+import { MapPin, Lightbulb, Network, Layers, Server, Activity, Megaphone, Search } from 'lucide-react';
 
 interface NavigationProps {
   activeSection: string;
@@ -7,12 +7,12 @@ interface NavigationProps {
 }
 
 const navItems = [
-  { id: 'hero', label: 'Home', icon: MapPin },
+  { id: 'demo', label: 'Find an address', icon: Search },
   { id: 'idea', label: 'The Idea', icon: Lightbulb },
   { id: 'architecture', label: 'Data Architecture', icon: Network },
   { id: 'features', label: 'MVP Features', icon: Layers },
   { id: 'system', label: 'System & Code', icon: Server },
-  { id: 'demo', label: 'Live Demo', icon: Activity },
+  { id: 'hero', label: 'Project overview', icon: MapPin },
   { id: 'marketing', label: 'Growth Plan', icon: Megaphone },
 ];
 
@@ -37,6 +37,7 @@ export default function Navigation({ activeSection, setActiveSection }: Navigati
               return (
                 <button
                   key={item.id}
+                  aria-label={item.label}
                   onClick={() => setActiveSection(item.id)}
                   className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                     isActive
@@ -66,6 +67,7 @@ export default function Navigation({ activeSection, setActiveSection }: Navigati
               return (
                 <button
                   key={item.id}
+                  aria-label={item.label}
                   onClick={() => setActiveSection(item.id)}
                   className={`p-2 rounded-lg transition-all ${
                     isActive ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-400'

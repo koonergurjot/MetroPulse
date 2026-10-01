@@ -7,6 +7,7 @@
  * worth of records. New Westminster and Richmond run the same platform, so
  * this adapter is reused for them by swapping the base URL.
  */
+import { requireCollection } from './validation.ts';
 import { config } from '../config.ts';
 import { fetchJson } from '../http.ts';
 import { haversineM } from '../geo.ts';
@@ -96,7 +97,7 @@ export async function queryOds(query: OdsQuery): Promise<Array<Record<string, un
   if (query.orderBy) url.searchParams.set('order_by', query.orderBy);
 
   const body = await fetchJson<OdsResponse>(url.toString(), { signal: query.signal, timeoutMs: 4_000 });
-  return body.results ?? [];
+  return requireCollection(body, 'results');
 }
 
 function toRecords(

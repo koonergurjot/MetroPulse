@@ -23,6 +23,8 @@ export interface CachePolicy {
    * immediately and refresh in the background.
    */
   staleMs?: number;
+  /** Maximum age beyond TTL for fallback after a failed refresh; defaults to staleMs. */
+  staleIfErrorMs?: number;
 }
 
 export interface CacheHit<T> {
@@ -67,8 +69,8 @@ export class SwrCache {
 
   /**
    * Resolve `key`, calling `loader` at most once per key across concurrent
-   * callers. If `loader` throws and a stale value exists, the stale value is
-   * served rather than propagating the failure.
+   * callers. If `loader` throws, cached evidence is only served within its bounded
+   * stale-if-error window. Expired evidence propagates the failure.
    */
   async resolve<T>(key: string, policy: CachePolicy, loader: () => Promise<T>): Promise<CacheHit<T>> {
     const entry = this.#entries.get(key) as CacheEntry<T> | undefined;
@@ -89,7 +91,11 @@ export class SwrCache {
       const value = await this.#load(key, loader);
       return { value, ageMs: 0, stale: false };
     } catch (err) {
-      if (entry) return { value: entry.value, ageMs, stale: true };
+      const fallbackWindow = policy.staleIfErrorMs ?? staleWindow;
+      const fallbackAgeMs = entry ? this.#now() - entry.storedAt : Infinity;
+      if (entry && fallbackAgeMs <= policy.ttlMs + fallbackWindow) {
+        return { value: entry.value, ageMs: fallbackAgeMs, stale: true };
+      }
       throw err;
     }
   }

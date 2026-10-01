@@ -66,9 +66,30 @@ describe('SwrCache', () => {
     await cache.resolve('k', { ttlMs: 10 }, loader);
     now += 10_000;
 
-    const hit = await cache.resolve('k', { ttlMs: 10 }, loader);
+    const hit = await cache.resolve('k', { ttlMs: 10, staleIfErrorMs: 10_000 }, loader);
     expect(hit.value).toBe('good');
     expect(hit.stale).toBe(true);
+  });
+
+  it('rejects expired evidence when a refresh fails', async () => {
+    let now = 1_000;
+    const cache = new SwrCache({ now: () => now });
+    await cache.resolve('k', { ttlMs: 10, staleMs: 100 }, async () => 'old');
+    now += 111;
+    await expect(cache.resolve('k', { ttlMs: 10, staleMs: 100 }, async () => {
+      throw new Error('provider unavailable');
+    })).rejects.toThrow('provider unavailable');
+  });
+
+  it('checks evidence age after a slow failed refresh', async () => {
+    let now = 1_000;
+    const cache = new SwrCache({ now: () => now });
+    await cache.resolve('k', { ttlMs: 10 }, async () => 'old');
+    now += 11;
+    await expect(cache.resolve('k', { ttlMs: 10, staleIfErrorMs: 100 }, async () => {
+      now += 100;
+      throw new Error('provider unavailable');
+    })).rejects.toThrow('provider unavailable');
   });
 
   it('propagates the failure when there is nothing cached', async () => {
@@ -86,7 +107,7 @@ describe('SwrCache', () => {
       .mockResolvedValue('ok');
 
     await expect(cache.resolve('k', { ttlMs: 10 }, loader)).rejects.toThrow('blip');
-    const hit = await cache.resolve('k', { ttlMs: 10 }, loader);
+    const hit = await cache.resolve('k', { ttlMs: 10, staleIfErrorMs: 10_000 }, loader);
     expect(hit.value).toBe('ok');
   });
 

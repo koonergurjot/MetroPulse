@@ -13,6 +13,10 @@ import { fetchTripUpdates } from '../src/server/sources/translink.ts';
 import { flattenTripUpdates } from '../src/server/snapshot/flatten.ts';
 import { createSink } from '../src/server/snapshot/sinks.ts';
 
+if (process.env.REQUIRE_DURABLE_SNAPSHOT === '1' && (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY)) {
+  throw new Error('Scheduled snapshots require SUPABASE_URL and SUPABASE_SERVICE_KEY for durable storage.');
+}
+
 const feed = await fetchTripUpdates();
 const rows = flattenTripUpdates(feed);
 const sink = createSink();

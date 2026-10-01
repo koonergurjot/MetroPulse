@@ -6,6 +6,7 @@
  * "is something happening here" signal for the suburbs whose open-data
  * portals are thinner than Vancouver's.
  */
+import { requireCollection } from './validation.ts';
 import { config } from '../config.ts';
 import { bboxAround, haversineM } from '../geo.ts';
 import { fetchJson } from '../http.ts';
@@ -54,7 +55,7 @@ export async function fetchRoadEvents(centre: LatLng, radiusM: number, signal?: 
   const body = await fetchJson<Open511Response>(url.toString(), { signal, timeoutMs: 4_000 });
 
   const out: CivicRecord[] = [];
-  for (const event of body.events ?? []) {
+  for (const event of requireCollection(body, 'events') as NonNullable<Open511Response['events']>) {
     const point = firstVertex(event.geography);
     if (!point) continue;
     const distanceM = Math.round(haversineM(centre, point));
