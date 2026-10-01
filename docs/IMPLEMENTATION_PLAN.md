@@ -14,6 +14,14 @@ Goal: help renters and buyers investigate an address before signing, with eviden
 - Set the HTML language to Canadian English and remove unused sandbox scripts and external icon CSS.
 - Refresh the GitHub README with expandable exploration, coverage, setup, and the remaining roadmap.
 
+## Second pass implemented
+
+- Reject missing/non-array civic collections, non-object records, and provider error objects instead of treating them as empty results. ODS, ArcGIS, and DriveBC use the same response-boundary check; genuine empty collections remain valid.
+- Bound stale-if-error fallback by the source policy, including elapsed time during failed refreshes. Expired evidence now becomes unavailable through the source boundary.
+- Add regression coverage for malformed HTTP-200 responses, genuine empty results, source error reporting, and expired cache entries.
+
+Field-level mappings, geometry completeness, status/date filters, provider totals, and live contract checks remain pending. This pass validates collection structure, not every record field.
+
 ## 1. Verify the evidence before launch
 
 Implement adapter-specific response validation. Treat unexpected schemas and ArcGIS error objects as source failures rather than empty results. Add confirmed date/status filters and preserve provider totals, truncation, and pagination metadata in the report contract. Verify Surrey and Burnaby with locations inside their boundaries. Bound stale-if-error by source age; expired evidence must not contribute to scores.

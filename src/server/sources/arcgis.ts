@@ -13,6 +13,7 @@
  * from each portal's REST services directory and are not checked against the
  * live services in CI. Run `npm run verify:sources` before a deploy.
  */
+import { requireCollection } from './validation.ts';
 import { config } from '../config.ts';
 import { bboxAround, haversineM } from '../geo.ts';
 import { fetchJson } from '../http.ts';
@@ -100,7 +101,7 @@ export async function queryArcGis(query: ArcGisQuery): Promise<ArcGisRecord[]> {
   const body = await fetchJson<ArcGisFeatureCollection>(url.toString(), { signal: query.signal, timeoutMs: 4_000 });
 
   const out: ArcGisRecord[] = [];
-  for (const feature of body.features ?? []) {
+  for (const feature of requireCollection(body, 'features') as ArcGisFeature[]) {
     const point = extractPoint(feature.geometry);
     if (!point) continue;
     out.push({ point, properties: feature.properties ?? {} });
