@@ -85,7 +85,7 @@ export const config = {
 
   /** Where the baked stop index is served from at runtime. */
   stops: {
-    path: env('STOP_INDEX_PATH', 'data/stops.sample.csv'),
+    path: env('STOP_INDEX_PATH', 'public/stops.csv'),
   },
 
   /** Durable sink for the delay-observation snapshotter. Supabase when both are set. */

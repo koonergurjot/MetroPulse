@@ -37,6 +37,7 @@ const LAYER_ROWS: Array<{ key: keyof LayerState; label: string; hint: string; do
   { key: 'buildings', label: '3D buildings', hint: 'Footprints & heights', dot: '#6b86b8' },
   { key: 'transit', label: 'Transit stops', hint: 'TransLink GTFS', dot: '#22d3ee' },
   { key: 'planned', label: 'Planned SkyTrain', hint: 'Schematic, approximate', dot: '#c4b5fd' },
+  { key: 'portfolio', label: 'My portfolio', hint: 'Sites from the batch tool', dot: '#f472b6' },
   { key: 'civic', label: 'Permits & 311', hint: 'Shown with a block report', dot: '#a78bfa' },
   { key: 'rings', label: 'Walk rings', hint: '5 / 10 / 15 minute radii', dot: '#34d399' },
 ];

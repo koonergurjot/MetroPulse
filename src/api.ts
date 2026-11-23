@@ -1,5 +1,5 @@
 import type { PulseResponse } from './server/types';
-import type { ListingsResponse } from './server/listings/types';
+import type { Listing, ListingsResponse, MarketSnapshot, ProviderInfo } from './server/listings/types';
 
 export interface Bounds {
   west: number;
@@ -22,10 +22,20 @@ export interface StopsResponse {
   placeholder: boolean;
 }
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number, readonly retryAfterSec: number | null) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal });
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body && typeof body.error === 'string' ? body.error : 'Request failed.');
+  if (!res.ok) {
+    const retry = Number(res.headers.get('retry-after'));
+    throw new ApiError(body && typeof body.error === 'string' ? body.error : 'Request failed.', res.status, Number.isFinite(retry) && retry > 0 ? retry : null);
+  }
   return body as T;
 }
 
@@ -68,3 +78,11 @@ export const compactMoney = (n: number, kind: 'sale' | 'rent'): string => {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}M`;
   return `$${Math.round(n / 1000)}k`;
 };
+
+export function fetchListingsByIds(ids: string[], signal?: AbortSignal): Promise<{ listings: Listing[]; provider: ProviderInfo }> {
+  return getJson(`/api/listings/batch?ids=${encodeURIComponent(ids.join(','))}`, signal);
+}
+
+export function fetchMarket(b: Bounds, kind: 'sale' | 'rent', signal?: AbortSignal): Promise<MarketSnapshot> {
+  return getJson(`/api/market?${bbox(b)}&kind=${kind}`, signal);
+}

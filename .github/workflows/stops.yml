@@ -1,0 +1,40 @@
+name: Refresh TransLink stop index
+
+on:
+  schedule:
+    - cron: '17 9 * * 1' # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Download TransLink GTFS
+        run: curl -fsSL --max-time 120 -o gtfs.zip https://gtfs-static.translink.ca/gtfs/google_transit.zip
+      - name: Build stops.csv
+        run: |
+          unzip -o -d gtfs gtfs.zip stops.txt
+          npm run build:stops -- gtfs/stops.txt public/stops.csv
+      - name: Open a PR if the index changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- public/stops.csv; then echo "No change."; exit 0; fi
+          branch="chore/stops-$(date +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add public/stops.csv
+          git commit -m "chore: refresh TransLink stop index"
+          git push origin "$branch"
+          gh pr create --title "Refresh TransLink stop index" --body "Automated weekly refresh of public/stops.csv from TransLink's static GTFS feed."

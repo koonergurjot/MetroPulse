@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, Bus, Check, CheckCircle2, Clock, Copy, MinusCircle, Share2, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Bus, Check, CheckCircle2, Clock, Copy, MinusCircle, Code2, Share2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import type { CivicRecord, PulseResponse, ScoreComponent, SourceResult, SourceStatus } from '../server/types';
 
@@ -100,6 +100,7 @@ export default function ReportPanel({
   onRetry: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
 
   if (loading) {
     return (
@@ -161,6 +162,20 @@ export default function ReportPanel({
           {data.score.value === null && <p className="mt-2 text-[12px] text-amber-300">Score withheld: not enough sources responded.</p>}
         </div>
       </div>
+
+      {data.location.slug && (
+        <button
+          type="button"
+          onClick={() => {
+            const src = `${window.location.origin}/embed/${data.location.slug}`;
+            const html = `<iframe src="${src}" width="360" height="360" style="border:0;border-radius:16px" title="MetroPulse block report" loading="lazy"></iframe>`;
+            void navigator.clipboard?.writeText(html).then(() => { setEmbedCopied(true); setTimeout(() => setEmbedCopied(false), 2000); });
+          }}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/12 px-3 py-2.5 text-[13px] text-slate-200 hover:bg-white/5"
+        >
+          {embedCopied ? <Check className="h-4 w-4 text-emerald-400" /> : <Code2 className="h-4 w-4" />} {embedCopied ? 'Embed code copied' : 'Copy embed code (for your site or listing)'}
+        </button>
+      )}
 
       {shareUrl && (
         <div className="flex gap-2">

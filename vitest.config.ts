@@ -5,6 +5,6 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/server/**/*.test.ts'],
+    include: ['src/server/**/*.test.ts', 'src/lib/**/*.test.ts', 'src/portfolio/**/*.test.ts'],
   },
 });

@@ -94,6 +94,23 @@ export interface ListingProvider {
   fetch(query: ListingQuery, signal?: AbortSignal): Promise<RawListing[]>;
 }
 
+export interface MarketRow {
+  municipality: string;
+  count: number;
+  medianPrice: number | null;
+  medianPpsf: number | null;
+  medianDaysOnMarket: number | null;
+  /** Share of listings with a price cut, 0-1. */
+  priceCutShare: number;
+}
+
+export interface MarketSnapshot {
+  kind: ListingKind;
+  rows: MarketRow[];
+  provider: ProviderInfo;
+  generatedAt: string;
+}
+
 export interface ListingStats {
   count: number;
   medianPrice: number | null;

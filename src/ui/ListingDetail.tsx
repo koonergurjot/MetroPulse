@@ -1,7 +1,8 @@
-import { ArrowLeft, Bath, BedDouble, Box, ChevronLeft, ChevronRight, MapPinned, Ruler, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Bath, BedDouble, Box, ChevronLeft, ChevronRight, GitCompareArrows, Heart, MapPinned, Ruler, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 import { money } from '../api';
 import type { Listing, ProviderInfo } from '../server/listings/types';
+import Afford from './Afford';
 import { DealBadge } from './Badges';
 
 function MarketBar({ pct }: { pct: number }) {
@@ -29,12 +30,24 @@ export default function ListingDetail({
   onBack,
   onReport,
   onFocus,
+  saved,
+  note,
+  comparing,
+  onToggleSave,
+  onNote,
+  onToggleCompare,
 }: {
   listing: Listing;
   provider: ProviderInfo | null;
   onBack: () => void;
   onReport: () => void;
   onFocus: () => void;
+  saved: boolean;
+  note: string;
+  comparing: boolean;
+  onToggleSave: () => void;
+  onNote: (n: string) => void;
+  onToggleCompare: () => void;
 }) {
   const [i, setI] = useState(0);
   const photo = l.photos[i] ?? l.photos[0];
@@ -115,6 +128,15 @@ export default function ListingDetail({
         <p className="mt-3 text-[11px] leading-snug text-slate-500">A “worth a look” signal from listing prices only. It is not an appraisal and ignores condition, view, and layout.</p>
       </section>
 
+      {l.kind === 'sale' && <Afford listing={l} />}
+
+      {saved && (
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wider text-slate-500">Your private note (stays in this browser)</span>
+          <textarea value={note} onChange={(e) => onNote(e.target.value)} rows={2} maxLength={500} className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 p-2.5 text-[13px] text-slate-200" placeholder="Parking? Noise? Questions for the agent…" />
+        </label>
+      )}
+
       {l.features.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {l.features.map((f) => <span key={f} className="rounded-full border border-white/10 px-2.5 py-1 text-[12px] text-slate-300">{f}</span>)}
@@ -127,6 +149,15 @@ export default function ListingDetail({
         </button>
         <button type="button" onClick={onFocus} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-white/5">
           <Box className="h-4 w-4" aria-hidden /> Fly in 3D
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" aria-pressed={saved} onClick={onToggleSave} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/5">
+          <Heart className={`h-4 w-4 ${saved ? 'fill-rose-400 text-rose-400' : ''}`} aria-hidden /> {saved ? 'Saved' : 'Save'}
+        </button>
+        <button type="button" aria-pressed={comparing} onClick={onToggleCompare} className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-medium transition hover:bg-white/5 ${comparing ? 'border-emerald-400/60 text-emerald-200' : 'border-white/15 text-white'}`}>
+          <GitCompareArrows className="h-4 w-4" aria-hidden /> {comparing ? 'In compare' : 'Compare'}
         </button>
       </div>
 

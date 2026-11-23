@@ -228,3 +228,14 @@ Follow the [implementation plan](docs/IMPLEMENTATION_PLAN.md) for dependencies a
 Reports display provider attribution. Most civic sources use open-government licences; TransLink has its own Open API Terms of Use. Review applicable terms before commercial use.
 
 **A better-informed question before signing is already a better start.**
+
+
+## Tools for buyers and businesses
+- **Saved homes** with private notes (browser-only), **compare** up to 3, and a **monthly cost estimate** using Canadian mortgage rules (stress test, minimum down payment, default insurance). Estimates only; BC property transfer tax is excluded.
+- **Shareable URLs** capture filters, camera, selection and hidden layers.
+- **Portfolio check** (briefcase icon): up to 100 addresses to a scored, exportable table and a map layer.
+- **Embed** a block report: `<iframe src="/embed/<slug>" width="360" height="360">`. Copy ready-made code from any report.
+- **Market snapshot**: median price, $/sqft, days on market and price-cut share by municipality.
+- `public/stops.csv` is the real TransLink stop index, refreshed weekly by `.github/workflows/stops.yml`.
+
+See [`docs/PLAYBOOK.md`](docs/PLAYBOOK.md) for use cases, licensing guardrails and monetization paths.

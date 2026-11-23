@@ -1,6 +1,6 @@
 import { demoProvider } from './demoProvider.ts';
 import { median, ppsfOf, scoreListings } from './deals.ts';
-import type { Listing, ListingProvider, ListingQuery, ListingsResponse, RawListing } from './types.ts';
+import type { Listing, ListingKind, ListingProvider, ListingQuery, ListingsResponse, MarketRow, MarketSnapshot, RawListing } from './types.ts';
 
 /** Single seam to swap in a licensed provider (DDF via brokerage partner, Repliers, ...). */
 export function getProvider(): ListingProvider {
@@ -53,4 +53,51 @@ export async function searchListings(
     provider: provider.info,
     generatedAt: new Date().toISOString(),
   };
+}
+
+/** Whole-region bounds used as the comparison population for lookups by id. */
+const REGION = { west: -124, south: 48.7, east: -121.5, north: 49.8 };
+
+/** Looks listings up by id (saved homes, compare, deep links). Scored against the whole region so the numbers match the map. */
+export async function getListingsByIds(
+  ids: string[],
+  provider: ListingProvider = getProvider(),
+  signal?: AbortSignal,
+): Promise<{ listings: Listing[]; provider: ListingsResponse['provider'] }> {
+  const wanted = new Set(ids);
+  const population = await provider.fetch({ ...REGION }, signal);
+  const scored = scoreListings(population.filter((l) => wanted.has(l.id)), population);
+  // Preserve the caller's order.
+  const order = new Map(ids.map((id, i) => [id, i]));
+  scored.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  return { listings: scored, provider: provider.info };
+}
+
+/** Pure aggregation, exported for tests. */
+export function summariseMarket(listings: RawListing[]): MarketRow[] {
+  const by = new Map<string, RawListing[]>();
+  for (const l of listings) {
+    const bucket = by.get(l.municipality);
+    if (bucket) bucket.push(l);
+    else by.set(l.municipality, [l]);
+  }
+  return [...by.entries()]
+    .map(([municipality, items]): MarketRow => ({
+      municipality,
+      count: items.length,
+      medianPrice: median(items.map((l) => l.price)),
+      medianPpsf: median(items.map((l) => ppsfOf(l)).filter((p): p is number => p !== null)),
+      medianDaysOnMarket: median(items.map((l) => l.daysOnMarket)),
+      priceCutShare: items.filter((l) => l.priceDrop !== null).length / items.length,
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export async function marketSnapshot(
+  query: Pick<ListingQuery, 'west' | 'south' | 'east' | 'north'> & { kind: ListingKind },
+  provider: ListingProvider = getProvider(),
+  signal?: AbortSignal,
+): Promise<MarketSnapshot> {
+  const raw = (await provider.fetch(query, signal)).filter((l) => l.kind === query.kind);
+  return { kind: query.kind, rows: summariseMarket(raw), provider: provider.info, generatedAt: new Date().toISOString() };
 }

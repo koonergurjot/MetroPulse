@@ -7,7 +7,7 @@ import { guardRequest, json, type HandlePulseOptions } from './handler.ts';
 import { METRO_VANCOUVER_BBOX, type BBox } from './geo.ts';
 import { loadStopIndex } from './gtfs/stopProvider.ts';
 import { listingArtSvg, type ArtKind } from './listings/art.ts';
-import { searchListings } from './listings/service.ts';
+import { getListingsByIds, marketSnapshot, searchListings } from './listings/service.ts';
 import type { ListingKind, ListingQuery, PropertyType } from './listings/types.ts';
 
 const PROPERTY_TYPES: readonly PropertyType[] = ['condo', 'townhouse', 'house', 'duplex'];
@@ -128,4 +128,41 @@ export async function handleArtRequest(request: Request): Promise<Response> {
       'access-control-allow-origin': '*',
     },
   });
+}
+
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
+const MAX_BATCH = 30;
+
+export async function handleListingsBatchRequest(request: Request, options: HandlePulseOptions = {}): Promise<Response> {
+  const blocked = guardRequest(request, options);
+  if (blocked) return blocked;
+  try {
+    const raw = new URL(request.url).searchParams.get('ids') ?? '';
+    const ids = [...new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))];
+    if (ids.length === 0) throw new BadParam('`ids` is required.');
+    if (ids.length > MAX_BATCH) throw new BadParam(`At most ${MAX_BATCH} ids per request.`);
+    if (!ids.every((id) => ID_PATTERN.test(id))) throw new BadParam('`ids` contains an invalid id.');
+    const result = await getListingsByIds(ids, undefined, request.signal);
+    return json({ ...result, generatedAt: new Date().toISOString() }, 200, { 'cache-control': 'public, max-age=30, s-maxage=60' });
+  } catch (err) {
+    if (err instanceof BadParam) return json({ error: err.message }, 400);
+    console.error('[listings/batch] unhandled error', err);
+    return json({ error: 'Could not load listings.' }, 500);
+  }
+}
+
+export async function handleMarketRequest(request: Request, options: HandlePulseOptions = {}): Promise<Response> {
+  const blocked = guardRequest(request, options);
+  if (blocked) return blocked;
+  try {
+    const url = new URL(request.url);
+    const kind = url.searchParams.get('kind') ?? 'sale';
+    if (kind !== 'sale' && kind !== 'rent') throw new BadParam('`kind` must be sale or rent.');
+    const result = await marketSnapshot({ ...parseBounds(url), kind }, undefined, request.signal);
+    return json(result, 200, { 'cache-control': 'public, max-age=60, s-maxage=300' });
+  } catch (err) {
+    if (err instanceof BadParam) return json({ error: err.message }, 400);
+    console.error('[market] unhandled error', err);
+    return json({ error: 'Could not load market data.' }, 500);
+  }
 }

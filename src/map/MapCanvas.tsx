@@ -16,6 +16,14 @@ export interface LayerState {
   civic: boolean;
   rings: boolean;
   buildings: boolean;
+  portfolio: boolean;
+}
+
+export interface PortfolioPoint {
+  lng: number;
+  lat: number;
+  name: string;
+  score: number | null;
 }
 
 export interface FlyTarget {
@@ -29,6 +37,7 @@ export interface FlyTarget {
 export interface MapCanvasHandle {
   zoomBy: (delta: number) => void;
   resetView: () => void;
+  fitTo: (points: Array<{ lng: number; lat: number }>) => void;
 }
 
 interface Props {
@@ -41,6 +50,8 @@ interface Props {
   fly: FlyTarget | null;
   tilt: boolean;
   inspectMode: boolean;
+  portfolio: PortfolioPoint[];
+  initialView?: { lng: number; lat: number; zoom: number } | null;
   onViewport: (bounds: Bounds, zoom: number) => void;
   onSelectListing: (id: string | null) => void;
   onInspect: (lng: number, lat: number) => void;
@@ -128,6 +139,13 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(props, r
   useImperativeHandle(ref, () => ({
     zoomBy: (d) => mapRef.current?.easeTo({ zoom: (mapRef.current.getZoom() ?? 10) + d, duration: 350 }),
     resetView: () => mapRef.current?.flyTo({ center: REGION_CENTER, zoom: 9.9, pitch: 0, bearing: 0, duration: 1400 }),
+    fitTo: (pts) => {
+      const map = mapRef.current;
+      if (!map || pts.length === 0) return;
+      const b = new maplibregl.LngLatBounds([pts[0].lng, pts[0].lat], [pts[0].lng, pts[0].lat]);
+      pts.forEach((q) => b.extend([q.lng, q.lat]));
+      map.fitBounds(b, { padding: { top: 80, bottom: 80, left: window.innerWidth >= 1024 ? 480 : 60, right: 80 }, maxZoom: 14, duration: 1200 });
+    },
   }));
 
   // Create the map once.
@@ -136,8 +154,8 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(props, r
     const map = new maplibregl.Map({
       container: container.current,
       style: mapStyle,
-      center: REGION_CENTER,
-      zoom: 9.9,
+      center: propsRef.current.initialView ? [propsRef.current.initialView.lng, propsRef.current.initialView.lat] : REGION_CENTER,
+      zoom: propsRef.current.initialView?.zoom ?? 9.9,
       minZoom: 8,
       maxZoom: 19.5,
       maxPitch: 75,
@@ -171,6 +189,25 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(props, r
       map.addSource('planned-stations', { type: 'geojson', data: PLANNED_STATIONS });
       map.addSource('civic', { type: 'geojson', data: EMPTY });
       map.addSource('rings', { type: 'geojson', data: EMPTY });
+      map.addSource('portfolio', { type: 'geojson', data: EMPTY });
+      map.addLayer({
+        id: 'portfolio-dot',
+        type: 'circle',
+        source: 'portfolio',
+        paint: {
+          'circle-radius': 9,
+          'circle-color': ['case', ['==', ['get', 'score'], -1], '#64748b', ['>=', ['get', 'score'], 75], '#34d399', ['>=', ['get', 'score'], 50], '#fbbf24', '#fb7185'],
+          'circle-stroke-color': '#0b1220',
+          'circle-stroke-width': 2.5,
+        },
+      });
+      map.addLayer({
+        id: 'portfolio-label',
+        type: 'symbol',
+        source: 'portfolio',
+        layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true },
+        paint: { 'text-color': '#e2e8f0', 'text-halo-color': '#0b1220', 'text-halo-width': 1.5 },
+      });
 
       // Deal heat: density of listings weighted by "worth a look" score.
       map.addLayer({
@@ -434,6 +471,10 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(props, r
         rings.push(ring);
       }
     }
+    (map.getSource('portfolio') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: p.portfolio.map((q) => ({ type: 'Feature', properties: { name: q.name, score: q.score ?? -1 }, geometry: { type: 'Point', coordinates: [q.lng, q.lat] } })),
+    });
     (map.getSource('civic') as GeoJSONSource).setData({ type: 'FeatureCollection', features: civic });
     (map.getSource('rings') as GeoJSONSource).setData({ type: 'FeatureCollection', features: rings });
 
@@ -443,6 +484,7 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(props, r
     for (const id of ['stops', 'stops-label']) vis(id, p.layers.transit);
     for (const id of ['planned-line', 'planned-station', 'planned-label']) vis(id, p.layers.planned);
     vis('civic', p.layers.civic);
+    for (const id of ['portfolio-dot', 'portfolio-label']) vis(id, p.layers.portfolio);
     for (const id of ['rings-fill', 'rings-line', 'rings-label']) vis(id, p.layers.rings);
     for (const id of ['building-3d', 'building-flat']) vis(id, p.layers.buildings);
 
@@ -455,7 +497,7 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(props, r
   useEffect(() => {
     syncAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.listings, props.stops, props.report, props.layers, props.selectedId, props.hoveredId]);
+  }, [props.listings, props.stops, props.report, props.layers, props.selectedId, props.hoveredId, props.portfolio]);
 
   // Pulsing marker at the active report location.
   useEffect(() => {

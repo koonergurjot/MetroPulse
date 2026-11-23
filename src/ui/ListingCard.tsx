@@ -1,4 +1,4 @@
-import { Bath, BedDouble, Ruler } from 'lucide-react';
+import { Bath, BedDouble, Heart, Ruler } from 'lucide-react';
 import { money } from '../api';
 import type { Listing } from '../server/listings/types';
 import { DealBadge } from './Badges';
@@ -10,13 +10,18 @@ export default function ListingCard({
   active,
   onSelect,
   onHover,
+  saved = false,
+  onToggleSave,
 }: {
   listing: Listing;
   active: boolean;
   onSelect: () => void;
   onHover: (id: string | null) => void;
+  saved?: boolean;
+  onToggleSave?: () => void;
 }) {
   return (
+    <div className="relative">
     <button
       type="button"
       onClick={onSelect}
@@ -56,5 +61,11 @@ export default function ListingCard({
         </div>
       </div>
     </button>
+    {onToggleSave && (
+      <button type="button" aria-pressed={saved} aria-label={saved ? 'Remove from saved' : 'Save this home'} onClick={onToggleSave} className="absolute left-4 top-4 rounded-full bg-black/55 p-1.5 backdrop-blur transition hover:bg-black/75">
+        <Heart className={`h-3.5 w-3.5 ${saved ? 'fill-rose-400 text-rose-400' : 'text-white'}`} aria-hidden />
+      </button>
+    )}
+    </div>
   );
 }

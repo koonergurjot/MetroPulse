@@ -11,13 +11,36 @@
  */
 import { handleHealthRequest, handlePulseRequest, pulseCacheControl } from './server/handler.ts';
 import { handleOgRequest } from './server/og.ts';
-import { handleArtRequest, handleListingsRequest, handleStopsRequest } from './server/mapHandlers.ts';
+import { handleArtRequest, handleListingsBatchRequest, handleListingsRequest, handleMarketRequest, handleStopsRequest } from './server/mapHandlers.ts';
+import { parseStopsCsv, StopIndex } from './server/gtfs/stopIndex.ts';
+import { setStopIndex } from './server/gtfs/stopProvider.ts';
 import { isValidSlug } from './server/slug.ts';
 import { resolveReportMeta } from './server/reportMeta.ts';
 
 interface Env {
   /** Static assets binding, configured in wrangler.jsonc. */
   ASSETS: { fetch: (request: Request) => Promise<Response> };
+}
+
+let stopIndexLoad: Promise<void> | null = null;
+
+/**
+ * Workers have no filesystem, so the weekly-refreshed `public/stops.csv` is read
+ * from the static assets binding once per isolate, unless STOP_INDEX_PATH
+ * points at an https URL (then the stop provider loads that itself).
+ */
+function ensureStopIndex(env: Env, url: URL): Promise<void> {
+  if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.STOP_INDEX_PATH) return Promise.resolve();
+  stopIndexLoad ??= env.ASSETS.fetch(new Request(new URL('/stops.csv', url)))
+    .then(async (res) => {
+      if (!res.ok || !(res.headers.get('content-type') ?? '').includes('csv')) throw new Error(`stops.csv ${res.status}`);
+      setStopIndex(new StopIndex(parseStopsCsv(await res.text())));
+    })
+    .catch((err) => {
+      stopIndexLoad = null; // retry on the next request
+      console.error('[stops] could not load stop index from assets', err);
+    });
+  return stopIndexLoad;
 }
 
 const REPORT_PATH = /^\/report\/([^/]+)\/?$/;
@@ -83,6 +106,9 @@ export default {
     if (url.pathname === '/api/pulse') return handlePulseRequest(request);
     if (url.pathname === '/api/health') return handleHealthRequest(request);
     if (url.pathname === '/api/og') return handleOgRequest(request);
+    if (url.pathname.startsWith('/api/')) await ensureStopIndex(env, url);
+    if (url.pathname === '/api/listings/batch') return handleListingsBatchRequest(request);
+    if (url.pathname === '/api/market') return handleMarketRequest(request);
     if (url.pathname === '/api/listings') return handleListingsRequest(request);
     if (url.pathname === '/api/stops') return handleStopsRequest(request);
     if (url.pathname.startsWith('/api/art/')) return handleArtRequest(request);
