@@ -4,11 +4,19 @@
 
 ### Know the block before you sign.
 
+<p>
+  <a href="https://github.com/koonergurjot/MetroPulse/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/koonergurjot/MetroPulse/ci.yml?label=CI&style=flat-square"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-0ea5e9?style=flat-square"></a>
+  <a href="CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-22c55e?style=flat-square"></a>
+  <a href="https://github.com/koonergurjot/MetroPulse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><img alt="Good first issues" src="https://img.shields.io/github/issues/koonergurjot/MetroPulse/good%20first%20issue?label=good%20first%20issues&style=flat-square&color=a855f7"></a>
+  <img alt="Open data only" src="https://img.shields.io/badge/data-open%20%26%20licensed-f59e0b?style=flat-square">
+</p>
+
 The listing shows the kitchen. **MetroPulse helps you investigate the neighborhood.**
 
 A map-first Lower Mainland explorer: a night-mode 3D map, price pins with deal signals, walk rings, planned SkyTrain, and a sourced block report for any address or pin.
 
-[Explore the report](#-try-it-locally) · [Check coverage](#-where-does-it-work) · [See the roadmap](docs/IMPLEMENTATION_PLAN.md) · [Read the blueprint](docs/BLUEPRINT.md)
+[Explore the report](#-try-it-locally) · [Check coverage](#-where-does-it-work) · [**Contribute**](#-contribute) · [See the roadmap](docs/IMPLEMENTATION_PLAN.md) · [Read the blueprint](docs/BLUEPRINT.md)
 
 </div>
 
@@ -223,8 +231,29 @@ Before production collection: finish archive identity, database access protectio
 
 Follow the [implementation plan](docs/IMPLEMENTATION_PLAN.md) for dependencies and acceptance criteria. The legacy presentation tabs remain available as project background and still need their older outing-focused content updated.
 
+## 🙋 Contribute
+
+MetroPulse is early, open source, and built to be extended by people who know their own city. You do not need a TransLink key to contribute: the test suite runs offline on fixtures.
+
+```bash
+git clone https://github.com/koonergurjot/MetroPulse.git && cd MetroPulse
+npm ci && npm test      # Node 22.6+, no API keys needed
+```
+
+**Pick something that fits you:**
+
+| If you want to… | Start here |
+| --- | --- |
+| Add your city (Richmond, New Westminster, Coquitlam…) | [Adding a municipality](docs/ADDING_A_MUNICIPALITY.md): one adapter plus one registry entry |
+| Make the data more trustworthy | Add fixture tests for the Vancouver adapter (see `drivebc.test.ts` as a template), or make `verify:sources` check field names |
+| Make the score more honest | Filter permits and 311 requests by status and date (the score says “recent” and “open”; the queries do not filter yet) |
+| Work on the map | Show raw civic records on the map; add a municipality lookup for coordinate-only queries |
+| Bring real listings | Implement a licensed `ListingProvider` (no scraping, see the note above) |
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the ground rules (explainable scores, honest missing-data states, attribution) and look for [`good first issue`](https://github.com/koonergurjot/MetroPulse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md); security reports go through [SECURITY.md](SECURITY.md).
+
 ## 🤝 Built on public data
 
-Reports display provider attribution. Most civic sources use open-government licences; TransLink has its own Open API Terms of Use. Review applicable terms before commercial use.
+The code is [MIT licensed](LICENSE); the data it displays is not part of that licence. Reports display provider attribution. Most civic sources use open-government licences; TransLink has its own Open API Terms of Use. Review applicable terms before commercial use.
 
 **A better-informed question before signing is already a better start.**
