@@ -24,3 +24,28 @@ create index if not exists delay_observations_stop_observed_idx
 -- Mirrors the above for "delay history on this route" queries.
 create index if not exists delay_observations_route_observed_idx
   on delay_observations (route_id, observed_at);
+
+-- The feed is forward-looking: one prediction is re-observed on many
+-- consecutive polls. Keep the first observation of each (trip, stop,
+-- predicted time) and drop repeats, so the archive grows with distinct
+-- predictions instead of with poll count.
+--
+-- Existing deployments: collapse earlier duplicates (keeping the oldest row)
+-- before the unique index can be built. A no-op on a fresh database.
+delete from delay_observations a
+  using delay_observations b
+  where a.trip_id = b.trip_id
+    and a.stop_id = b.stop_id
+    and a.predicted_time = b.predicted_time
+    and a.id > b.id;
+
+create unique index if not exists delay_observations_dedup_idx
+  on delay_observations (trip_id, stop_id, predicted_time);
+
+-- Lock the table down. Supabase exposes the `public` schema through its REST
+-- API to the `anon` and `authenticated` roles, so without row level security
+-- anyone holding the publishable key could read, insert into or wipe the
+-- archive. With RLS enabled and no policies, only the service-role key used by
+-- scripts/snapshot.ts (which bypasses RLS) can touch it. Add an explicit
+-- `select` policy later if you decide to publish the archive read-only.
+alter table delay_observations enable row level security;

@@ -11,6 +11,9 @@ import type { DelayObservation, SnapshotSink } from './types.ts';
 /** Supabase accepts large payloads, but chunking keeps a bad row from failing a whole poll. */
 const SUPABASE_CHUNK_SIZE = 500;
 
+/** Must match the unique index in supabase/schema.sql. */
+export const SUPABASE_CONFLICT_COLUMNS = 'trip_id,stop_id,predicted_time';
+
 function toRow(observation: DelayObservation): Record<string, unknown> {
   return {
     stop_id: observation.stopId,
@@ -35,13 +38,21 @@ export class SupabaseSink implements SnapshotSink {
   // https://supabase.com/docs/reference/javascript/typescript-support
   private readonly client: SupabaseClient<any, any, any>;
 
-  constructor(url: string, serviceKey: string) {
-    this.client = createClient(url, serviceKey);
+  constructor(url: string, serviceKey: string, client?: SupabaseClient<any, any, any>) {
+    this.client = client ?? createClient(url, serviceKey);
   }
 
+  /**
+   * Idempotent: the feed is forward-looking, so the same prediction shows up
+   * in many consecutive polls. `(trip_id, stop_id, predicted_time)` is unique
+   * in the table (see supabase/schema.sql) and repeats are skipped, which also
+   * makes re-running a half-failed poll safe.
+   */
   async write(rows: DelayObservation[]): Promise<void> {
     for (const batch of chunk(rows, SUPABASE_CHUNK_SIZE)) {
-      const { error } = await this.client.from('delay_observations').insert(batch.map(toRow));
+      const { error } = await this.client
+        .from('delay_observations')
+        .upsert(batch.map(toRow), { onConflict: SUPABASE_CONFLICT_COLUMNS, ignoreDuplicates: true });
       if (error) throw new Error(`supabase insert failed: ${error.message}`);
     }
   }
