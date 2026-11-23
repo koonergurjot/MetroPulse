@@ -1,0 +1,45 @@
+name: Add a municipality
+description: Propose or claim a new city adapter (Richmond, New Westminster, Coquitlam, ...)
+labels: [good first issue, data source]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New cities are the most welcome contribution. Read [docs/ADDING_A_MUNICIPALITY.md](../blob/main/docs/ADDING_A_MUNICIPALITY.md) first.
+  - type: input
+    id: city
+    attributes:
+      label: City
+      placeholder: Richmond
+    validations:
+      required: true
+  - type: textarea
+    id: datasets
+    attributes:
+      label: Open data portal and datasets
+      description: Links to the portal and to each dataset (building permits, 311 requests, rental or property standards).
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Opendatasoft
+        - ArcGIS FeatureServer
+        - Other (describe below)
+    validations:
+      required: true
+  - type: input
+    id: licence
+    attributes:
+      label: Licence
+      description: For example "Open Government Licence – City of X". Required so we can attribute it correctly.
+    validations:
+      required: true
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to implement this adapter myself

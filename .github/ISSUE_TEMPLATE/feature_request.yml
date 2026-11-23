@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to find out?
+      description: Describe the question someone signing a lease would want answered, not just the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed idea
+      description: What would you add or change?
+  - type: textarea
+    id: data
+    attributes:
+      label: Data source
+      description: Which public dataset or API would back this, and under what licence? Listings scraped from sites are out of scope; see CONTRIBUTING.md.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this myself

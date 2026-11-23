@@ -1,4 +1,5 @@
-import maplibregl, { type GeoJSONSource, type Map as MLMap, type MapGeoJSONFeature } from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+import type { GeoJSONSource, Map as MLMap, MapGeoJSONFeature, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import type { Feature, FeatureCollection, Point, Polygon } from 'geojson';
@@ -362,7 +363,7 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(props, r
       moveTimer.current = window.setTimeout(report, 280);
     });
 
-    map.on('click', (e) => {
+    map.on('click', (e: MapMouseEvent) => {
       const p = propsRef.current;
       const hits = map.queryRenderedFeatures(e.point, { layers: ['clusters', 'listing-pill', 'listing-pill-selected'] });
       const hit: MapGeoJSONFeature | undefined = hits[0];

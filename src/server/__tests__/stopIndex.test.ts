@@ -59,4 +59,16 @@ describe('StopIndex.near', () => {
     expect(index.get('nope')).toBeUndefined();
     expect(index.size).toBe(3);
   });
+
+  it('keeps a quoted field containing a line break in one record', () => {
+    const csv = [
+      'stop_id,stop_name,stop_lat,stop_lon',
+      '1,"Main St\r\nat 1st Ave",49.28,-123.12',
+      '2,Plain,49.29,-123.13',
+    ].join('\n');
+    const stops = parseStopsCsv(csv);
+    expect(stops.map((s) => s.stopId)).toEqual(['1', '2']);
+    expect(stops[0].lat).toBeCloseTo(49.28);
+    expect(stops[1].lng).toBeCloseTo(-123.13);
+  });
 });

@@ -30,12 +30,12 @@ function withKey(rawUrl: string): string {
 
 export async function fetchTripUpdates(signal?: AbortSignal): Promise<RtFeed> {
   // The full feed is a few MB of protobuf; give it a longer leash than JSON.
-  const buffer = await fetchBinary(withKey(config.translink.tripUpdates), { signal, timeoutMs: 6_000, retries: 1 });
+  const buffer = await fetchBinary(withKey(config.translink.tripUpdates), { signal, timeoutMs: 6_000, retries: 1, redirect: 'manual' });
   return decodeFeed(buffer);
 }
 
 export async function fetchAlerts(signal?: AbortSignal): Promise<RtFeed> {
-  const buffer = await fetchBinary(withKey(config.translink.alerts), { signal, timeoutMs: 4_000, retries: 1 });
+  const buffer = await fetchBinary(withKey(config.translink.alerts), { signal, timeoutMs: 4_000, retries: 1, redirect: 'manual' });
   return decodeFeed(buffer);
 }
 

@@ -1,0 +1,30 @@
+name: Verify upstream sources
+
+# Municipal portals rename datasets and move endpoints without notice. This
+# daily check catches that before users do. A failure here is a signal to
+# investigate the portal, not necessarily a bug in this repository.
+on:
+  schedule:
+    - cron: '17 14 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run verify:sources
+        env:
+          TRANSLINK_API_KEY: ${{ secrets.TRANSLINK_API_KEY }}

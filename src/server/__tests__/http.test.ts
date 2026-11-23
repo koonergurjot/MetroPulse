@@ -103,4 +103,31 @@ describe('fetchWithPolicy', () => {
       message: 'upstream returned malformed JSON',
     });
   });
+
+  it('follows redirects by default', async () => {
+    const fetchMock = vi.fn(async () => ok({ ok: true }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await fetchJson('https://example.test/x');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.test/x',
+      expect.objectContaining({ redirect: 'follow' }),
+    );
+  });
+
+  it('refuses to follow a redirect when asked, so URL credentials cannot leak to another host', async () => {
+    const fetchMock = vi.fn(
+      async () => new Response('', { status: 302, headers: { location: 'https://evil.test/' } }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(
+      fetchWithPolicy('https://example.test/x?apikey=secret', { redirect: 'manual', baseBackoffMs: 1 }),
+    ).rejects.toMatchObject({ name: 'UpstreamError', status: 302, retryable: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.test/x?apikey=secret',
+      expect.objectContaining({ redirect: 'manual' }),
+    );
+  });
 });

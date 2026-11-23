@@ -1,0 +1,52 @@
+name: Bug report
+description: Something is wrong, missing, or misleading in a report
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. For security problems, please follow [SECURITY.md](../blob/main/SECURITY.md) instead of filing a public issue.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The address searched or the request made (for example a `/api/pulse` URL), plus any filters you changed.
+      placeholder: |
+        1. Search "555 W Hastings St Vancouver"
+        2. Open the transit panel
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Score or score explanation
+        - Transit (TransLink)
+        - Civic data (311, permits, rental standards)
+        - Road events (DriveBC)
+        - Geocoding / address search
+        - Map
+        - Transit archive / snapshot job
+        - Docs or setup
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Browser or runtime, Node version if running locally, and whether this is the hosted app or your own deployment.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove API keys and any personal information before pasting.

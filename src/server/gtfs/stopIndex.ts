@@ -130,8 +130,34 @@ export function splitCsvRow(line: string): string[] {
   return out;
 }
 
+/**
+ * Splits CSV text into records on newlines that fall *outside* quoted fields,
+ * so a quoted value containing a line break stays in one record (RFC 4180).
+ */
+export function splitCsvRecords(csv: string): string[] {
+  const records: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let i = 0; i < csv.length; i++) {
+    const ch = csv[i];
+    if (ch === '"') {
+      // An escaped quote ("") toggles twice, which leaves the state unchanged.
+      quoted = !quoted;
+      current += ch;
+    } else if (!quoted && (ch === '\n' || ch === '\r')) {
+      if (ch === '\r' && csv[i + 1] === '\n') i++;
+      records.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  records.push(current);
+  return records;
+}
+
 export function parseStopsCsv(csv: string): GtfsStop[] {
-  const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  const lines = splitCsvRecords(csv).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
 
   // Strip a UTF-8 BOM, which transit agencies ship more often than you'd hope.

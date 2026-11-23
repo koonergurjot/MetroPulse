@@ -25,6 +25,13 @@ export interface FetchPolicy {
   maxBackoffMs?: number;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /**
+   * Redirect handling, forwarded to `fetch`. Defaults to `'follow'`. Requests
+   * that carry a credential in the URL must pass `'manual'` so a redirect to
+   * another host can never forward that credential; the 3xx then surfaces as
+   * a non-retryable `UpstreamError`.
+   */
+  redirect?: 'follow' | 'manual';
 }
 
 const DEFAULTS = {
@@ -83,7 +90,7 @@ export async function fetchWithPolicy(url: string, policy: FetchPolicy = {}): Pr
       const res = await fetch(url, {
         headers: { accept: 'application/json', ...policy.headers },
         signal,
-        redirect: 'follow',
+        redirect: policy.redirect ?? 'follow',
       });
 
       if (res.ok) return res;
