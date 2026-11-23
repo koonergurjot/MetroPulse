@@ -1,57 +1,108 @@
 @import "tailwindcss";
 
 @theme {
-  --color-slate-950: #020617;
-  --color-slate-900: #0f172a;
-  --color-slate-800: #1e293b;
-  --color-slate-700: #334155;
-  --color-slate-600: #475569;
-  --color-slate-500: #64748b;
-  --color-slate-400: #94a3b8;
-  --color-slate-300: #cbd5e1;
-  --color-slate-200: #e2e8f0;
+  --color-ink: #070b14;
+  --color-panel: #0a101c;
+  --color-edge: rgba(148, 163, 184, 0.14);
+  --color-signal: #34d399;
+  --color-transit: #22d3ee;
+  --color-deal: #fbbf24;
+  --font-sans: ui-sans-serif, "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-html {
-  scroll-behavior: smooth;
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
-  background-color: #020617;
+  margin: 0;
+  background: var(--color-ink);
   color: #e2e8f0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
-::-webkit-scrollbar-track {
-  background: #0f172a;
+.glass {
+  background: linear-gradient(180deg, rgba(14, 21, 36, 0.86), rgba(8, 13, 24, 0.9));
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid var(--color-edge);
+  box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+.scroll-y {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #26344d transparent;
+}
+.scroll-y::-webkit-scrollbar { width: 6px; }
+.scroll-y::-webkit-scrollbar-thumb { background: #26344d; border-radius: 3px; }
+
+:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+/* Report pin */
+.mp-pin {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+.mp-pin-dot {
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: var(--color-signal);
+  border: 2px solid #04120d;
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.9);
+}
+.mp-pin-ring {
+  position: absolute;
+  inset: -10px;
+  border-radius: 999px;
+  border: 2px solid rgba(52, 211, 153, 0.75);
+  animation: mp-ping 2s ease-out infinite;
+}
+@keyframes mp-ping {
+  0% { transform: scale(0.35); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
 
-/* Code block styling */
-pre code {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+/* MapLibre chrome, dark */
+.maplibregl-ctrl-attrib {
+  background: rgba(8, 13, 23, 0.7) !important;
+  color: #7c8dab !important;
+  font-size: 10px;
+  border-radius: 8px 0 0 0;
+}
+.maplibregl-ctrl-attrib a { color: #9fb0cf !important; }
+.maplibregl-ctrl-attrib-button { filter: invert(0.75); }
+.maplibregl-canvas { outline: none; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 0.35s ease-out both; }
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #111a2c 0%, #19253b 50%, #111a2c 100%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s linear infinite;
 }
 
-/* Animation utilities */
-@keyframes pulse-slow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}
-
-.animate-pulse-slow {
-  animation: pulse-slow 3s ease-in-out infinite;
+@media (prefers-reduced-motion: reduce) {
+  .rise, .shimmer, .mp-pin-ring { animation: none; }
 }

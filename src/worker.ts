@@ -11,6 +11,7 @@
  */
 import { handleHealthRequest, handlePulseRequest, pulseCacheControl } from './server/handler.ts';
 import { handleOgRequest } from './server/og.ts';
+import { handleArtRequest, handleListingsRequest, handleStopsRequest } from './server/mapHandlers.ts';
 import { isValidSlug } from './server/slug.ts';
 import { resolveReportMeta } from './server/reportMeta.ts';
 
@@ -82,6 +83,9 @@ export default {
     if (url.pathname === '/api/pulse') return handlePulseRequest(request);
     if (url.pathname === '/api/health') return handleHealthRequest(request);
     if (url.pathname === '/api/og') return handleOgRequest(request);
+    if (url.pathname === '/api/listings') return handleListingsRequest(request);
+    if (url.pathname === '/api/stops') return handleStopsRequest(request);
+    if (url.pathname.startsWith('/api/art/')) return handleArtRequest(request);
 
     const reportMatch = url.pathname.match(REPORT_PATH);
     if (reportMatch && request.method === 'GET') {
