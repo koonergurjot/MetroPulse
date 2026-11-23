@@ -5,6 +5,7 @@
  */
 import { createServer } from 'node:http';
 import { handleHealthRequest, handlePulseRequest } from '../src/server/handler.ts';
+import { handleArtRequest, handleListingsRequest, handleStopsRequest } from '../src/server/mapHandlers.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
 
@@ -26,6 +27,12 @@ const server = createServer(async (req, res) => {
   let response: Response;
   if (url.pathname === '/api/pulse') {
     response = await handlePulseRequest(request, { clientIp });
+  } else if (url.pathname === '/api/listings') {
+    response = await handleListingsRequest(request, { clientIp });
+  } else if (url.pathname === '/api/stops') {
+    response = await handleStopsRequest(request, { clientIp });
+  } else if (url.pathname.startsWith('/api/art/')) {
+    response = await handleArtRequest(request);
   } else if (url.pathname === '/api/health') {
     response = await handleHealthRequest(request);
   } else {

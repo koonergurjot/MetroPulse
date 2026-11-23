@@ -52,6 +52,12 @@ export interface PulseQuery {
   radiusM?: number;
   /** `/report/<slug>` deep links resolve through this instead of `address`. */
   slug?: string;
+  /**
+   * Municipality hint for coordinate queries (map clicks, listing pins). Only
+   * honoured when it names a municipality with a registered adapter, so a
+   * caller cannot point a query at an arbitrary dataset.
+   */
+  locality?: string;
 }
 
 /** Cache policies, tuned to how fast each feed actually changes. */
@@ -181,7 +187,15 @@ async function resolveLocation(query: PulseQuery, signal?: AbortSignal): Promise
     if (!withinBBox(point, METRO_VANCOUVER_BBOX)) {
       throw new BadRequestError('MetroPulse only covers Metro Vancouver right now.');
     }
-    return { ...point, address: null, locality: null, confidence: null, source: 'coordinates', slug: null };
+    const hinted = query.locality ? findLocalityEntry(query.locality) : undefined;
+    return {
+      ...point,
+      address: null,
+      locality: hinted ? hinted.cityLabel : null,
+      confidence: null,
+      source: 'coordinates',
+      slug: null,
+    };
   }
 
   // A `/report/<slug>` deep link carries no address of its own — the slug

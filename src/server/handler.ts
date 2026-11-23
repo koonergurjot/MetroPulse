@@ -17,7 +17,7 @@ export const CORS_HEADERS: Record<string, string> = {
   'access-control-allow-headers': 'content-type',
 };
 
-function json(body: unknown, status: number, extraHeaders: Record<string, string> = {}): Response {
+export function json(body: unknown, status: number, extraHeaders: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -42,6 +42,7 @@ function parseQuery(url: URL): PulseQuery {
     lng: num('lng'),
     radiusM: num('radius'),
     slug: url.searchParams.get('slug') ?? undefined,
+    locality: url.searchParams.get('locality') ?? undefined,
   };
 }
 
@@ -65,6 +66,21 @@ export interface HandlePulseOptions {
    * `scripts/dev-api.ts`.
    */
   clientIp?: ClientIpResolver;
+}
+
+/** Shared guard for read-only endpoints: CORS preflight, method check, per-IP rate limit. Returns a Response to short-circuit, or null to continue. */
+export function guardRequest(request: Request, options: HandlePulseOptions = {}): Response | null {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
+  if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405);
+  if (config.limits.rateLimitMaxRequests > 0) {
+    const resolveClientIp = options.clientIp ?? headerClientIp;
+    const limit = rateLimiter.check(resolveClientIp(request), {
+      windowMs: config.limits.rateLimitWindowMs,
+      maxRequests: config.limits.rateLimitMaxRequests,
+    });
+    if (!limit.allowed) return json({ error: 'Too many requests.' }, 429, { 'retry-after': String(limit.retryAfterSec) });
+  }
+  return null;
 }
 
 export async function handlePulseRequest(request: Request, options: HandlePulseOptions = {}): Promise<Response> {

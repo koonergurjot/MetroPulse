@@ -68,3 +68,16 @@ describe('categoryResult', () => {
     expect(result.status).not.toBe('ok');
   });
 });
+
+describe('coordinate queries with a locality hint', () => {
+  it('only accepts hints that name a registered municipality', async () => {
+    // Keep the test offline: every upstream degrades to an error result.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    const { buildPulse } = await import('../pulse.ts');
+    const known = await buildPulse({ lat: 49.2827, lng: -123.1207, locality: 'vancouver' });
+    expect(known.location.locality).toBe('Vancouver');
+    const unknown = await buildPulse({ lat: 49.2827, lng: -123.1207, locality: 'Atlantis' });
+    expect(unknown.location.locality).toBeNull();
+    vi.unstubAllGlobals();
+  });
+});

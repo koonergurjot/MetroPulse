@@ -46,6 +46,20 @@ export class StopIndex {
     return this.#byId.get(stopId);
   }
 
+  /** Stops inside a bounding box (for map layers), capped at `limit`. */
+  inBox(box: BBox, limit = 800): GtfsStop[] {
+    const found: GtfsStop[] = [];
+    for (let y = Math.floor(box.minLat / CELL_DEG); y <= Math.floor(box.maxLat / CELL_DEG); y++) {
+      for (let x = Math.floor(box.minLng / CELL_DEG); x <= Math.floor(box.maxLng / CELL_DEG); x++) {
+        for (const stop of this.#byCell.get(`${y}:${x}`) ?? []) {
+          if (withinBBox(stop, box)) found.push(stop);
+          if (found.length >= limit) return found;
+        }
+      }
+    }
+    return found;
+  }
+
   /** Stops within `radiusM`, nearest first, capped at `limit`. */
   near(centre: { lat: number; lng: number }, radiusM: number, limit = 12): NearbyStop[] {
     const box: BBox = bboxAround(centre, radiusM);
